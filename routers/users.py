@@ -1,10 +1,35 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from models import UserData, UpdateUserData, QuestionData
 from database import users_db
+from dotenv import load_dotenv
+from openai import OpenAI
 import os
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+load_dotenv()
+key = "OPENAI_API_KEY"
+api_key = os.getenv(key)
+base_url = os.getenv("OPENAI_BASE_URL")
+model = os.getenv("OPENAI_MODEL")
+
+if not api_key:
+    raise RuntimeError(f"{key} 没有配置，请检查 .env 文件")
+
+client = OpenAI(api_key=api_key, base_url=base_url)
+
+SYSTEM_PROMPT = """
+你是一名 AI 应用开发学习助手。
+
+用户是一名普通二本大三学生，正在学习 Python、FastAPI、前端联调和大模型应用开发。
+
+回答要求：
+1. 用通俗易懂的中文解释。
+2. 先给结论，再分步骤说明。
+3. 遇到代码问题，给出简单可运行示例。
+4. 不要堆太多术语。
+5. 不确定的地方要明确说明，不要编造。
+"""
 
 ALLOWED_EXTENSIONS = {".txt"}
 
@@ -15,7 +40,24 @@ def hello():
 
 @router.post("/ask")
 def ask_question(data: QuestionData):
-    return {"msg": f"你发送的问题是：{data.question}"}
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": data.question},
+            ],
+            temperature=0.3,
+            max_tokens=800,
+        )
+        answer = response.choices[0].message.content
+
+        return {"msg": answer}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"大模型调用失败：{str(e)}"
+        )
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
