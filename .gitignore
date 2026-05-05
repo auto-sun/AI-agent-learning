@@ -1,4 +1,4 @@
 .env
-upload/
+uploads/
 __pycache__/
 *.pyc
