@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>文件上传练习</title>
+</head>
+
+<body>
+    <h2>文件上传测试</h2>
+
+    <input id="fileInput" type="file">
+    <button id="uploadBtn">上传文件</button>
+
+    <p id="result">这里显示结果</p>
+
+    <script>
+        const fileInput = document.querySelector("#fileInput");
+        const uploadBtn = document.querySelector("#uploadBtn");
+        const result = document.querySelector("#result");
+
+        async function uploadFile() {
+            try {
+                const file = fileInput.files[0];
+
+                if (!file) {
+                    result.innerText = "请先选择文件";
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append("file", file);
+
+                const response = await fetch("/users/upload", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await response.json();
+                result.innerText = data.msg;
+            } catch (error) {
+                console.log("错误详情：", error);
+                result.innerText = "上传失败";
+            }
+        }
+
+        uploadBtn.addEventListener("click", uploadFile);
+    </script>
+</body>
+
+</html>

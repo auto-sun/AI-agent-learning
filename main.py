@@ -1,0 +1,13 @@
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from routers.users import router as users_router
+import os
+
+app = FastAPI()
+
+app.include_router(users_router)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

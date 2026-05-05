@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>问答</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h2,
+        h3 {
+            margin-top: 24px;
+        }
+
+        .row {
+            margin-bottom: 12px;
+        }
+
+        button {
+            padding: 8px 14px;
+            margin-left: 8px;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        #result {
+            margin-top: 12px;
+            color: #333;
+        }
+
+        #chatBox {
+            margin-top: 12px;
+            border: 1px solid #ccc;
+            height: 260px;
+            padding: 12px;
+            overflow-y: auto;
+            background: #fafafa;
+        }
+
+        .msg {
+            margin: 8px 0;
+            white-space: pre-wrap;
+        }
+
+        .user-msg {
+            color: #1d4ed8;
+        }
+
+        .ai-msg {
+            color: #15803d;
+        }
+
+        .loading-msg {
+            background: #f3f4f6;
+            color: #666;
+            font-style: italic;
+        }
+
+        #textPreview {
+            margin-top: 12px;
+            border: 1px solid #ccc;
+            max-height: 120px;
+            padding: 12px;
+            background: #fafafa;
+            white-space: pre-wrap;
+        }
+
+        #fileList {
+            margin-top: 12px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin: 6px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>1.问答测试</h2>
+    <div class="row">
+        <input type="text" id="questionInput" placeholder="请输入问题">
+        <button id="sendBtn">发送</button>
+    </div>
+
+    <p id="result">这里显示状态信息</p>
+    <div id="chatBox"></div>
+    <h2>2. 上传 txt 文件</h2>
+
+    <div class="row">
+        <input type="file" id="fileInput" accept=".txt">
+        <button id="uploadBtn">上传文件</button>
+    </div>
+
+    <h3>文件内容预览</h3>
+    <div id="textPreview">这里显示 txt 内容</div>
+
+    <h3>已上传文件列表</h3>
+    <ul id="fileList"></ul>
+
+    <script>
+        const questionInput = document.querySelector("#questionInput");
+        const sendBtn = document.querySelector("#sendBtn");
+        const result = document.querySelector("#result");
+        const chatBox = document.querySelector("#chatBox");
+        const fileInput = document.querySelector("#fileInput");
+        const uploadBtn = document.querySelector("#uploadBtn");
+        const textPreview = document.querySelector("#textPreview");
+        const fileList = document.querySelector("#fileList");
+
+        function scrollToBottom() {
+            chatBox.scrollTop = chatBox.scrollHeight;
+            // console.log(chatBox.scrollHeight);
+
+        }
+        function appendMessage(role, text) {
+            const p = document.createElement("p");
+            p.classList.add("msg");
+
+            if (role === "user") {
+                p.classList.add("user-msg");
+                p.innerText = "我：" + text;
+            } else if (role === "loading") {
+                p.classList.add("loading-msg");
+                p.innerText = "AI: " + text;
+            }
+            else {
+                p.classList.add("ai-msg");
+                p.innerText = "AI: " + text;
+            }
+
+            chatBox.appendChild(p);
+            scrollToBottom();
+
+            return p;
+        }
+        function renderFileList(files) {
+            fileList.innerHTML = "";
+            for (const fileName of files) {
+                const li = document.createElement("li")
+                const a = document.createElement("a");
+
+                a.innerText = fileName;
+                a.href = "/uploads/" + encodeURIComponent(fileName);
+                a.target = "_blank";
+
+                li.appendChild(a);
+                fileList.appendChild(li);
+            }
+        }
+        async function loadFiles() {
+            try {
+                const response = await fetch("/users/files");
+                const data = await response.json();
+                renderFileList(data.files)
+            } catch (error) {
+                console.log("获取列表失败: ", error);
+
+            }
+        }
+
+        async function sendQuestion() {
+            try {
+                const text = questionInput.value.trim();
+
+                if (text === "") {
+                    result.innerText = "请输入内容";
+                    return;
+                }
+
+                sendBtn.disabled = true;
+                sendBtn.innerText = "发送中";
+                result.innerText = "AI 正在思考...";
+                appendMessage("user", text);
+                questionInput.value = "";
+
+                const loadingElement = appendMessage("loading", "正在思考...");
+
+                const response = await fetch("/users/ask", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        question: text
+                    })
+                });
+
+                let data = {};
+                try {
+                    data = await response.json();
+                } catch {
+                    data = {};
+                }
+
+
+                if (!response.ok) {
+                    result.innerText = data.detail || `请求失败,状态码:${response.status}`;
+                    loadingElement.className = "msg ai-msg";
+                    loadingElement.innerText = "AI:" + (data.detail || "请求失败");
+                    scrollToBottom();
+                    return;
+                }
+
+                result.innerText = "发送成功";
+                loadingElement.className = "msg ai-msg";
+                loadingElement.innerText = "AI:" + data.msg;
+                scrollToBottom;
+            } catch (error) {
+                console.log("发送问题失败:", error);
+                result.innerText = "网络失败，无法连接后端";
+                appendMessage("ai", "网络错误，无法连接后端");
+
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerText = "发送";
+
+            }
+        }
+        async function uploadFile() {
+            try {
+                const file = fileInput.files[0];
+
+                if (!file) {
+                    result.innerText = "请先选择文件";
+                    return;
+                }
+
+                const lowerName = file.name.toLowerCase();
+                if (!lowerName.endsWith(".txt")) {
+                    result.innerText = "现在只允许上传 txt 文件";
+                    return;
+                }
+
+                uploadBtn.disabled = true;
+                uploadBtn.innerText = "上传中...";
+                result.innerText = "文件上传中...";
+
+                const formData = new FormData();
+                formData.append("file", file);
+
+                const response = await fetch("/users/upload", {
+                    method: "POST",
+                    body: formData
+                });
+                let data = {};
+                try {
+                    data = await response.json();
+                } catch {
+                    data = {};
+                }
+
+                if (!response.ok) {
+                    result.innerText = data.detail || `上传失败，状态码：${response.status}`;
+                    return;
+                }
+
+                result.innerText = data.msg;
+                textPreview.innerText = data.text;
+                fileInput.value = "";
+                await loadFiles();
+            } catch (error) {
+                console.log("上传失败：", error);
+                result.innerText = "网络错误，上传失败";
+
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.innerText = "上传文件";
+            }
+
+
+        }
+        sendBtn.addEventListener("click", sendQuestion);
+        uploadBtn.addEventListener("click", uploadFile);
+        questionInput.addEventListener("keydown", function (event) {
+            if (event.key === "Enter") {
+                sendQuestion();
+            }
+        });
+        loadFiles();
+    </script>
+</body>
+
+</html>

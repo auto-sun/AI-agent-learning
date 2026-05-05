@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件上传列表</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        #fileList {
+            margin-top: 20px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin: 6px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>文件上传测试</h2>
+
+    <input id="fileInput" type="file" accept=".txt,.pdf,.docx">
+    <button id="uploadBtn">上传文件</button>
+    <p id="result">这里显示结果</p>
+    <h3>已上传文件列表</h3>
+    <ul id="fileList"></ul>
+
+    <script>
+        const fileInput = document.querySelector("#fileInput");
+        const uploadBtn = document.querySelector("#uploadBtn");
+        const result = document.querySelector("#result");
+        const fileList = document.querySelector("#fileList");
+
+        function renderFileList(files) {
+            fileList.innerHTML = "";
+            for (const fileName of files) {
+                const li = document.createElement("li");
+                const a = document.createElement("a");
+                a.innerText = fileName;
+                a.href = "/uploads/" + encodeURIComponent(fileName);
+                a.target = "_blank";
+
+                li.appendChild(a)
+                fileList.appendChild(li)
+            }
+        }
+
+
+        async function loadFiles() {
+            try {
+                const response = await fetch("/users/files");
+                const data = await response.json();
+                renderFileList(data.files);
+            } catch (error) {
+                console.log("获取列表失败：", error);
+            }
+        }
+
+        async function uploadFile() {
+            try {
+                const file = fileInput.files[0]
+                if (!file) {
+                    result.innerText = "请先选择文件";
+                    return;
+                }
+                const allowedExtensions = [".txt", ".pdf", ".docx"];
+                const lowerName = file.name.toLowerCase();
+
+                const isAllowed = allowedExtensions.some(ext => lowerName.endsWith(ext));
+                if (!isAllowed) {
+                    result.innerText = "只允许上传 txt、pdf、docx 文件";
+                    return;
+                }
+                const formData = new FormData();
+                formData.append("file", file);
+
+                const response = await fetch("/users/upload", {
+                    method: "post",
+                    body: formData
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    result.innerText = data.detail || "上传失败"
+                }
+                result.innerText = data.msg;
+
+                fileInput.value = "";
+
+                await loadFiles();
+
+            } catch (error) {
+                console.log("错误详情：", error);
+                result.innerText = "上传失败";
+            }
+        }
+        uploadBtn.addEventListener("click", uploadFile);
+        loadFiles();
+    </script>
+</body>
+
+</html>
