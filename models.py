@@ -12,3 +12,6 @@ class UserData(BaseModel):
 class UpdateUserData(BaseModel):
     age: int
     email: Optional[str] = None
+
+class SummaryData(BaseModel):
+    text: str

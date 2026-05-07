@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
-from models import UserData, UpdateUserData, QuestionData
+from models import *
 from database import users_db
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -31,6 +31,26 @@ SYSTEM_PROMPT = """
 5. 不确定的地方要明确说明，不要编造。
 """
 
+SUMMARY_PROMPT = """
+你是一名文档总结助手。
+
+请总结用户提供的 txt 文档内容。
+
+要求：
+1. 只根据用户提供的文本总结，不要编造。
+2. 先给 1 句话总体概括。
+3. 再列出 3 到 5 个要点。
+4. 最后给出“适合后续提问的方向”。
+5. 如果文本内容太少，请说明“文本内容不足，无法充分总结”。
+
+输出格式：
+总体概括：
+要点：
+1.
+2.
+3.
+后续可提问方向：
+"""
 ALLOWED_EXTENSIONS = {".txt"}
 
 
@@ -53,6 +73,7 @@ def ask_question(data: QuestionData):
         answer = response.choices[0].message.content
 
         return {"msg": answer}
+    
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -62,6 +83,7 @@ def ask_question(data: QuestionData):
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     os.makedirs("uploads", exist_ok = True)
+
     _, ext = os.path.splitext(file.filename)
     ext = ext.lower()
 
@@ -99,8 +121,44 @@ def file_list():
     files = os.listdir("uploads")
     return {"files": files}
 
-    
 
+@router.post("/summarize")
+def summarize_text(data: SummaryData):    
+    if not data.text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="没有可总结的文本内容"
+        )
+    
+    if len(data.text) > 12000:
+        raise  HTTPException(
+            status_code=400,
+            detail="文本太长"
+        )
+    
+    try:
+        user_input = f"""
+        请总结下面这份文档：
+        【文档内容】
+        {data.text}
+    """
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": SUMMARY_PROMPT},
+                {"role": "user", "content": user_input}
+            ],
+            temperature=0.2,
+            max_tokens=1000,
+        )
+
+        summary = completion.choices[0].message.content
+        return{"summary": summary}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"文档总结失败: {str(e)}"
+        )
 @router.post("/users")
 def create_user(user: UserData):
     for old_user in users_db:

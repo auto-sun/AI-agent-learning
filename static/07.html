@@ -73,6 +73,7 @@
             padding: 12px;
             background: #fafafa;
             white-space: pre-wrap;
+            overflow-y: auto;
         }
 
         #fileList {
@@ -82,6 +83,15 @@
 
         li {
             margin: 6px 0;
+        }
+
+        #summaryBox {
+            margin-top: 12px;
+            border: 1px solid #ccc;
+            min-height: 120px;
+            padding: 12px;
+            background: #fafafa;
+            white-space: pre-wrap;
         }
     </style>
 </head>
@@ -108,6 +118,11 @@
     <h3>已上传文件列表</h3>
     <ul id="fileList"></ul>
 
+    <h2>3.文档总结</h2>
+    <button id="summaryBtn">总结文档</button>
+
+    <h3>AI 总结结果</h3>
+    <div id="summaryBox">这里显示 AI 总结结果</div>
     <script>
         const questionInput = document.querySelector("#questionInput");
         const sendBtn = document.querySelector("#sendBtn");
@@ -117,9 +132,11 @@
         const uploadBtn = document.querySelector("#uploadBtn");
         const textPreview = document.querySelector("#textPreview");
         const fileList = document.querySelector("#fileList");
+        const summaryBtn = document.querySelector("#summaryBtn");
+        const summaryBox = document.querySelector("#summaryBox");
 
-        function scrollToBottom() {
-            chatBox.scrollTop = chatBox.scrollHeight;
+        function scrollToBottom(func) {
+            func.scrollTop = func.scrollHeight;
             // console.log(chatBox.scrollHeight);
 
         }
@@ -140,7 +157,7 @@
             }
 
             chatBox.appendChild(p);
-            scrollToBottom();
+            scrollToBottom(chatBox);
 
             return p;
         }
@@ -280,6 +297,56 @@
 
 
         }
+
+        async function summarizeText() {
+            try {
+                const text = textPreview.innerText.trim();
+                if (text === "" || text === "这里显示 txt 内容") {
+                    result.innerText = "请先上传 txt 文件";
+                    return;
+                }
+
+                summaryBtn.disabled = true;
+                summaryBtn.innerText = "总结中...";
+                result.innerText = "AI 正在总结文档...";
+                summaryBox.innerText = "总结中，请稍等...";
+
+                const response = await fetch("/users/summarize", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        text: text
+                    })
+                });
+
+                let data = {};
+                try {
+                    data = await response.json();
+                } catch {
+                    data = {};
+                }
+
+                if (!response.ok) {
+                    result.innerText = data.detail || `总结失败，状态码：${response.status}`;
+                    summaryBox.innerText = data.detail || "总结失败";
+                    return;
+                }
+
+                result.innerText = "总结成功";
+                summaryBox.innerText = data.summary;
+            } catch (error) {
+                console.log("总结失败：", error);
+                result.innerText = "网络错误，总结失败";
+                summaryBox.innerText = "网络错误，总结失败";
+            } finally {
+                summaryBtn.disabled = false;
+                summaryBtn.innerText = "总结文档";
+            }
+        }
+
+        summaryBtn.addEventListener("click", summarizeText);
         sendBtn.addEventListener("click", sendQuestion);
         uploadBtn.addEventListener("click", uploadFile);
         questionInput.addEventListener("keydown", function (event) {
