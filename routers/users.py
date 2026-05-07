@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
+from services.text_splitter import split_text
 from models import *
 from database import users_db
 from dotenv import load_dotenv
@@ -51,6 +52,24 @@ SUMMARY_PROMPT = """
 3.
 后续可提问方向：
 """
+
+DOC_QA_PROMPT = """
+你是一个严谨的文档问答助手。
+
+请只根据用户提供的【文档内容】回答【用户问题】。
+
+回答要求：
+1. 只能使用文档中出现的信息。
+2. 如果文档中没有答案，请回答“文档中未提及”。
+3. 不要使用文档以外的知识进行补充。
+4. 回答要简洁清楚。
+5. 如果能找到依据，请简要说明依据来自文档的哪部分内容。
+
+输出格式：
+答案：
+依据：
+"""
+
 ALLOWED_EXTENSIONS = {".txt"}
 
 
@@ -159,6 +178,90 @@ def summarize_text(data: SummaryData):
             status_code=500,
             detail=f"文档总结失败: {str(e)}"
         )
+    
+@router.post("/doc-ask")
+def ask_document(data: DocQuestionData):
+    if not data.text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="请先上传 txt 文件"
+        )
+    
+    if not data.question.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="请输入问题"
+        )
+    
+    if len(data.text) > 12000:
+        raise HTTPException(
+            status_code=400,
+            detail="文档太长，当前版本只支持短文本问答，后面会学习文本切分和 RAG"
+        )
+    
+    try:
+        user_input = f"""
+    【文档内容】
+    {data.text}
+
+    【用户问题】
+    {data.question}
+    """
+
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": DOC_QA_PROMPT},
+                {"role": "user", "content": user_input},
+            ],
+            temperature=0.2,
+            max_tokens=800,
+        )
+        answer = completion.choices[0].message.content
+        return{"answer": answer}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"文档问答失败：{str(e)}"
+        )
+    
+
+@router.post("/chunks")
+def create_chunks(data: ChunkData):
+    if not data.text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="没有可切分的文本内容"
+        )
+
+    if data.chunk_size <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="chunk_size 必须大于 0"
+        )
+
+    if data.overlap < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="overlap 不能小于 0"
+        )
+
+    if data.overlap >= data.chunk_size:
+        raise HTTPException(
+            status_code=400,
+            detail="overlap 必须小于 chunk_size"
+        )
+
+    chunks = split_text(
+        text=data.text,
+        chunk_size=data.chunk_size,
+        overlap=data.overlap
+    )
+
+    return {
+        "chunk_count": len(chunks),
+        "chunks": chunks
+    }
 @router.post("/users")
 def create_user(user: UserData):
     for old_user in users_db:

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 应用开发练习</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+    <script src="/static/js/app.js"></script>
+    <h2>1.问答测试</h2>
+    <div class="row">
+        <input type="text" id="questionInput" placeholder="请输入问题">
+        <button id="sendBtn">发送</button>
+    </div>
+
+    <p id="result">这里显示状态信息</p>
+    <div id="chatBox"></div>
+    <h2>2. 上传 txt 文件</h2>
+
+    <div class="row">
+        <input type="file" id="fileInput" accept=".txt">
+        <button id="uploadBtn">上传文件</button>
+    </div>
+
+    <h3>文件内容预览</h3>
+    <div id="textPreview">这里显示 txt 内容</div>
+
+    <h3>已上传文件列表</h3>
+    <ul id="fileList"></ul>
+
+    <h2>3.文档总结</h2>
+    <button id="summaryBtn">总结文档</button>
+
+    <h3>AI 总结结果</h3>
+    <div id="summaryBox">这里显示 AI 总结结果</div>
+
+    <h3>针对当前文档提问</h3>
+    <div class="row">
+        <input id="docQuestionInput" type="text" placeholder="请输入关于当前文档的问题">
+        <button id="docAskBtn">提问文档</button>
+    </div>
+
+    <div id="docAnswerBox">这里显示文档问答结果</div>
+
+    <h3>文本切分结果</h3>
+
+    <div class="row">
+        <button id="chunkBtn">文本切分</button>
+    </div>
+
+    <div id="chunkBox">这里显示 chunk 结果</div>
+
+
+</body>
+
+</html>
