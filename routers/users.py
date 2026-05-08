@@ -1,74 +1,13 @@
+import os
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from services.text_splitter import split_text
-from models import *
-from database import users_db
-from dotenv import load_dotenv
-from openai import OpenAI
-import os
+from schemas.users import *
+from services.ai_services import ask_ai, summarize_text, ask_document
+
+
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-load_dotenv()
-key = "OPENAI_API_KEY"
-api_key = os.getenv(key)
-base_url = os.getenv("OPENAI_BASE_URL")
-model = os.getenv("OPENAI_MODEL")
-
-if not api_key:
-    raise RuntimeError(f"{key} 没有配置，请检查 .env 文件")
-
-client = OpenAI(api_key=api_key, base_url=base_url)
-
-SYSTEM_PROMPT = """
-你是一名 AI 应用开发学习助手。
-
-用户是一名普通二本大三学生，正在学习 Python、FastAPI、前端联调和大模型应用开发。
-
-回答要求：
-1. 用通俗易懂的中文解释。
-2. 先给结论，再分步骤说明。
-3. 遇到代码问题，给出简单可运行示例。
-4. 不要堆太多术语。
-5. 不确定的地方要明确说明，不要编造。
-"""
-
-SUMMARY_PROMPT = """
-你是一名文档总结助手。
-
-请总结用户提供的 txt 文档内容。
-
-要求：
-1. 只根据用户提供的文本总结，不要编造。
-2. 先给 1 句话总体概括。
-3. 再列出 3 到 5 个要点。
-4. 最后给出“适合后续提问的方向”。
-5. 如果文本内容太少，请说明“文本内容不足，无法充分总结”。
-
-输出格式：
-总体概括：
-要点：
-1.
-2.
-3.
-后续可提问方向：
-"""
-
-DOC_QA_PROMPT = """
-你是一个严谨的文档问答助手。
-
-请只根据用户提供的【文档内容】回答【用户问题】。
-
-回答要求：
-1. 只能使用文档中出现的信息。
-2. 如果文档中没有答案，请回答“文档中未提及”。
-3. 不要使用文档以外的知识进行补充。
-4. 回答要简洁清楚。
-5. 如果能找到依据，请简要说明依据来自文档的哪部分内容。
-
-输出格式：
-答案：
-依据：
-"""
 
 ALLOWED_EXTENSIONS = {".txt"}
 
@@ -80,19 +19,8 @@ def hello():
 @router.post("/ask")
 def ask_question(data: QuestionData):
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": data.question},
-            ],
-            temperature=0.3,
-            max_tokens=800,
-        )
-        answer = response.choices[0].message.content
-
+        answer = ask_ai(data.question)
         return {"msg": answer}
-    
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -142,7 +70,7 @@ def file_list():
 
 
 @router.post("/summarize")
-def summarize_text(data: SummaryData):    
+def summarize_t(data: SummaryData):    
     if not data.text.strip():
         raise HTTPException(
             status_code=400,
@@ -156,23 +84,10 @@ def summarize_text(data: SummaryData):
         )
     
     try:
-        user_input = f"""
-        请总结下面这份文档：
-        【文档内容】
-        {data.text}
-    """
-        completion = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": SUMMARY_PROMPT},
-                {"role": "user", "content": user_input}
-            ],
-            temperature=0.2,
-            max_tokens=1000,
-        )
+        summary = summarize_text(data.text)
 
-        summary = completion.choices[0].message.content
         return{"summary": summary}
+    
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -180,7 +95,7 @@ def summarize_text(data: SummaryData):
         )
     
 @router.post("/doc-ask")
-def ask_document(data: DocQuestionData):
+def ask_doc(data: DocQuestionData):
     if not data.text.strip():
         raise HTTPException(
             status_code=400,
@@ -200,25 +115,13 @@ def ask_document(data: DocQuestionData):
         )
     
     try:
-        user_input = f"""
-    【文档内容】
-    {data.text}
-
-    【用户问题】
-    {data.question}
-    """
-
-        completion = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": DOC_QA_PROMPT},
-                {"role": "user", "content": user_input},
-            ],
-            temperature=0.2,
-            max_tokens=800,
+        answer = ask_document(
+            text = data.text, 
+            question = data.question
         )
-        answer = completion.choices[0].message.content
+
         return{"answer": answer}
+    
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -262,57 +165,4 @@ def create_chunks(data: ChunkData):
         "chunk_count": len(chunks),
         "chunks": chunks
     }
-@router.post("/users")
-def create_user(user: UserData):
-    for old_user in users_db:
-        if old_user["username"] == user.username:
-            raise HTTPException(status_code=400, detail="username already exists")
 
-    users_db.append(user.model_dump())
-    return {
-        "msg": "user created",
-        "new_user": user.model_dump(),
-        "total_users": len(users_db)
-    }
-
-
-@router.get("/users")
-def get_user():
-    return {
-        "users": users_db,
-        "total_users": len(users_db)
-    }
-
-
-@router.get("/users/{username}")
-def get_user_by_name(username: str):
-    for user in users_db:
-        if user["username"] == username:
-            return {"user": user}
-    raise HTTPException(status_code=404, detail="user not found")
-
-
-@router.put("/users/{username}")
-def update_user(username: str, new_data: UpdateUserData):
-    for user in users_db:
-        if user["username"] == username:
-            user["age"] = new_data.age
-            user["email"] = new_data.email
-            return {
-                "msg": "user updated",
-                "user": user
-            }
-    raise HTTPException(status_code=404, detail="user not found")
-
-
-@router.delete("/users/{username}")
-def delete_user(username: str):
-    for i, user in enumerate(users_db):
-        if user["username"] == username:
-            deleted_user = users_db.pop(i)
-            return {
-                "msg": "user deleted",
-                "deleted_user": deleted_user,
-                "total_users": len(users_db)
-            }
-    raise HTTPException(status_code=404, detail="user not found")
