@@ -1,4 +1,5 @@
 def split_text(text: str, chunk_size: int = 500, overlap: int = 100):
+   
     chunks = []
 
     start = 0

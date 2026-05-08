@@ -110,3 +110,8 @@ li {
     margin: 10px 0;
     background: white;
 }
+
+.chunk-title {
+    font-weight: bold;
+    margin-bottom: 6px;
+}

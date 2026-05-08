@@ -14,7 +14,9 @@ const docQuestionInput = document.querySelector("#docQuestionInput");
 const docAskBtn = document.querySelector("#docAskBtn");
 const docAnswerBox = document.querySelector("#docAnswerBox");
 const chunkBtn = document.querySelector("#chunkBtn");
-const chunkBox = document.querySelector("#chunkBox"); let currentText = "";
+const chunkBox = document.querySelector("#chunkBox");
+let currentText = "";
+let currentChunks = [];
 function scrollToBottom(func) {
     func.scrollTop = func.scrollHeight;
     // console.log(chatBox.scrollHeight);
@@ -242,10 +244,26 @@ async function askDocument() {
 }
 function renderChunks(chunks) {
     chunkBox.innerHTML = "";
+
+    if (chunkBox.length === 0) {
+        chunkBox.innerText = "没有切分结果";
+        return;
+    }
+
     for (let i = 0; i < chunks.length; i++) {
         const div = document.createElement("div");
         div.classList.add("chunk-item");
-        div.innerText = "Chunk " + (i + 1) + "：\n" + chunks[i];
+
+        const title = document.createElement("div");
+        title.classList.add("chunk-title");
+        title.innerText = "Chunk " + (i + 1);
+
+        const content = document.createElement("div");
+        content.innerText = chunks[i];
+
+        div.appendChild(title);
+        div.appendChild(content);
+
         chunkBox.appendChild(div);
     }
 }
@@ -268,7 +286,7 @@ async function splitCurrentText() {
             body: JSON.stringify({
                 text: text,
                 chunk_size: 500,
-                overlap: 100
+                overlap: 200
             })
         });
         let data = {};
@@ -277,11 +295,14 @@ async function splitCurrentText() {
         } catch {
             data = {};
         }
+
         if (!response.ok) {
             result.innerText = data.detail || `文本切分失败，状态码：${response.status}`;
             chunkBox.innerText = data.detail || "文本切分失败";
             return;
         }
+
+        currentChunks = data.chunks || [];
         result.innerText = "文本切分成功，共 " + data.chunk_count + " 段";
         renderChunks(data.chunks);
     } catch (error) {
