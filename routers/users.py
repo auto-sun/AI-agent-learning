@@ -2,7 +2,7 @@ import os
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from services.text_splitter import split_text
 from schemas.users import *
-from services.ai_services import ask_ai, summarize_text, ask_document
+from services.ai_services import *
 
 
 
@@ -166,3 +166,36 @@ def create_chunks(data: ChunkData):
         "chunks": chunks
     }
 
+
+@router.post("/similarity")
+def compare_similarity(data: SimilarityData):
+    if not data.text1.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="text1 不能为空"
+        )
+    
+    if not data.text2.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="text2 不能为空"
+        )
+    
+    try:
+        embedding1 = get_embedding(data.text1)
+        embedding2 = get_embedding(data.text2)
+
+        score = cosine_similarity(embedding1, embedding2)
+        return {
+            "similarity": score,
+            "embedding_dimension": len(embedding1),
+            "text1_preview": data.text1[:50],
+            "text2_preview": data.text2[:50]
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"相似度计算失败：{str(e)}"
+        )
+
+        

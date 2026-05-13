@@ -30,15 +30,6 @@ button:disabled {
     color: #333;
 }
 
-#chatBox {
-    margin-top: 12px;
-    border: 1px solid #ccc;
-    height: 260px;
-    padding: 12px;
-    overflow-y: auto;
-    background: #fafafa;
-}
-
 .msg {
     margin: 8px 0;
     white-space: pre-wrap;
@@ -58,16 +49,6 @@ button:disabled {
     font-style: italic;
 }
 
-#textPreview {
-    margin-top: 12px;
-    border: 1px solid #ccc;
-    max-height: 120px;
-    padding: 12px;
-    background: #fafafa;
-    white-space: pre-wrap;
-    overflow-y: auto;
-}
-
 #fileList {
     margin-top: 12px;
     padding-left: 20px;
@@ -77,32 +58,6 @@ li {
     margin: 6px 0;
 }
 
-#summaryBox {
-    margin-top: 12px;
-    border: 1px solid #ccc;
-    min-height: 120px;
-    padding: 12px;
-    background: #fafafa;
-    white-space: pre-wrap;
-}
-
-#docAnswerBox {
-    margin-top: 12px;
-    border: 1px solid #ccc;
-    min-height: 120px;
-    padding: 12px;
-    background: #fafafa;
-    white-space: pre-wrap;
-}
-
-#chunkBox {
-    margin-top: 12px;
-    border: 1px solid #ccc;
-    min-height: 120px;
-    padding: 12px;
-    background: #fafafa;
-    white-space: pre-wrap;
-}
 
 .chunk-item {
     border: 1px solid #ddd;
@@ -114,4 +69,15 @@ li {
 .chunk-title {
     font-weight: bold;
     margin-bottom: 6px;
+}
+
+#similarityBox, #chatBox, #textPreview,
+#summaryBox, #docAnswerBox,
+#chunkBox {
+    margin-top: 12px;
+    border: 1px solid #ccc;
+    min-height: 80px;
+    padding: 12px;
+    background: #fafafa;
+    white-space: pre-wrap;
 }

@@ -15,3 +15,7 @@ class ChunkData(BaseModel):
     text: str
     chunk_size: int = 500
     overlap: int = 100
+
+class SimilarityData(BaseModel):
+    text1: str
+    text2: str

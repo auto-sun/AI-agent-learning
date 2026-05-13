@@ -15,6 +15,10 @@ const docAskBtn = document.querySelector("#docAskBtn");
 const docAnswerBox = document.querySelector("#docAnswerBox");
 const chunkBtn = document.querySelector("#chunkBtn");
 const chunkBox = document.querySelector("#chunkBox");
+const similarText1 = document.querySelector("#similarText1");
+const similarText2 = document.querySelector("#similarText2");
+const similarityBtn = document.querySelector("#similarityBtn");
+const similarityBox = document.querySelector("#similarityBox");
 let currentText = "";
 let currentChunks = [];
 function scrollToBottom(func) {
@@ -245,7 +249,7 @@ async function askDocument() {
 function renderChunks(chunks) {
     chunkBox.innerHTML = "";
 
-    if (chunkBox.length === 0) {
+    if (!chunks || chunks.length === 0) {
         chunkBox.innerText = "没有切分结果";
         return;
     }
@@ -314,6 +318,74 @@ async function splitCurrentText() {
         chunkBtn.innerText = "文本切分";
     }
 }
+
+
+async function compareSimilarity() {
+    try {
+        const text1 = similarText1.value.trim();
+        const text2 = similarText2.value.trim();
+
+        if (text1 === "") {
+            result.innerText = "请输入文本1";
+            return;
+        }
+        if (text2 === "") {
+            result.innerText = "请输入文本2";
+            return;
+        }
+
+        similarityBtn.disabled = true;
+        similarityBtn.innerText = "计算中...";
+        result.innerText = "正在计算相似度...";
+        similarityBox.innerText = "计算中，请稍等...";
+
+        const response = await fetch("/users/similarity", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                text1: text1,
+                text2: text2
+            })
+        });
+
+        let data = {};
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+        if (!response.ok) {
+            result.innerText = data.detail || `计算相似度失败，状态码：${response.status}`;
+            similarityBox.innerText = data.detail || "计算相似度失败";
+            return;
+        }
+
+        const score = data.similarity;
+        if (typeof score !== "number") {
+            throw new Error("后端没有返回有效的 similarity 数值");
+        }
+        result.innerText = "相似度计算成功";
+
+        similarityBox.innerText =
+            "相似度分数：" + score.toFixed(4) + "\n" +
+            "向量维度：" + data.embedding_dimension + "\n\n" +
+            "文本1：" + data.text1_preview + "\n" +
+            "文本2：" + data.text2_preview;
+    }
+    catch (error) {
+        console.error("计算相似度失败：", error);
+        result.innerText = "网络错误，计算相似度失败";
+        similarityBox.innerText = "网络错误，计算相似度失败：" + error.message;
+    }
+    finally {
+        similarityBtn.disabled = false;
+        similarityBtn.innerText = "计算相似度";
+    }
+}
+
+similarityBtn.addEventListener("click", compareSimilarity);
 chunkBtn.addEventListener("click", splitCurrentText);
 docAskBtn.addEventListener("click", askDocument);
 summaryBtn.addEventListener("click", summarizeText);

@@ -2,18 +2,32 @@ import os
 
 from dotenv import load_dotenv
 from openai import OpenAI
+import math
 
 
 load_dotenv()
-base_url = os.getenv("OPENAI_BASE_URL")
-api_key = os.getenv("OPENAI_API_KEY")
 
-if not api_key:
-    raise RuntimeError("OPENAI_API_KEY 没有配置，请检查 .env 文件")
 
-client = OpenAI(api_key=api_key,base_url=base_url)
+if not os.getenv("DEEPSEEK_API_KEY"):
+    raise RuntimeError("DEEPSEEK_API_KEY 没有配置，请检查 .env 文件")
 
-MODEL_NAME = os.getenv("OPENAI_MODEL")
+if not os.getenv("EMBEDDING_API_KEY"):
+    raise RuntimeError("EMBEDDING_API_KEY 没有配置，请检查 .env 文件")
+
+deepseek_client = OpenAI(
+    base_url = os.getenv("DEEPSEEK_BASE_URL"),
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+)
+
+embedding_client = OpenAI(
+    base_url = os.getenv("EMBEDDING_BASE_URL"),
+    api_key = os.getenv("EMBEDDING_API_KEY")
+)
+
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
+
+
 
 
 SYSTEM_PROMPT = """
@@ -74,8 +88,8 @@ def ask_ai(question: str) -> str:
     """
     普通 AI 问答
     """
-    response = client.chat.completions.create(
-            model=MODEL_NAME,
+    response = deepseek_client.chat.completions.create(
+            model=DEEPSEEK_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": question},
@@ -97,8 +111,8 @@ def summarize_text(text: str) -> str:
 {text}
 """
 
-    completion = client.chat.completions.create(
-            model=MODEL_NAME,
+    completion = deepseek_client.chat.completions.create(
+            model=DEEPSEEK_MODEL,
             messages=[
                 {"role": "system", "content": SUMMARY_PROMPT},
                 {"role": "user", "content": user_input}
@@ -124,8 +138,8 @@ def ask_document(text: str, question: str) -> str:
 {question}
 """
 
-    completion = client.chat.completions.create(
-            model=MODEL_NAME,
+    completion = deepseek_client.chat.completions.create(
+            model=DEEPSEEK_MODEL,
             messages=[
                 {"role": "system", "content": DOC_QA_PROMPT},
                 {"role": "user", "content": user_input},
@@ -134,3 +148,37 @@ def ask_document(text: str, question: str) -> str:
             max_tokens=800,
         )
     return completion.choices[0].message.content
+
+
+def get_embedding(text: str) -> list[float]:
+    text = text.strip().replace("\n", " ")
+
+    if not text:
+        raise ValueError("文本不能为空")
+
+    response = embedding_client.embeddings.create(
+        model=EMBEDDING_MODEL,
+        input=text
+    )
+
+    return response.data[0].embedding
+
+
+
+
+def cosine_similarity(vector1: list[float], vector2: list[float]) -> float:
+    if len(vector1) != len(vector2):
+        raise ValueError(
+            f"两个向量长度不一致：vector1={len(vector1)}, vector2={len(vector2)}"
+        )
+    if not vector1 or not vector2:
+        raise ValueError("向量不能为空")
+    
+    dot_product = sum(a * b for a, b in zip(vector1, vector2))
+    norm1 = math.sqrt(sum(a * a for a in vector1))
+    norm2 = math.sqrt(sum(b * b for b in vector2))
+
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+
+    return dot_product / (norm1 * norm2)
