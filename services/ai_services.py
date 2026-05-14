@@ -8,21 +8,29 @@ import math
 load_dotenv()
 
 
-if not os.getenv("DEEPSEEK_API_KEY"):
-    raise RuntimeError("DEEPSEEK_API_KEY 没有配置，请检查 .env 文件")
+def create_openai_client(api_key: str | None, base_url: str | None = None) -> OpenAI:
+    if not api_key:
+        raise RuntimeError("API key 没有配置，请检查环境变量")
+    
+    kwargs = {"api_key": api_key}
 
-if not os.getenv("EMBEDDING_API_KEY"):
-    raise RuntimeError("EMBEDDING_API_KEY 没有配置，请检查 .env 文件")
+    if base_url:
+        kwargs["base_url"] = base_url
 
-deepseek_client = OpenAI(
-    base_url = os.getenv("DEEPSEEK_BASE_URL"),
-    api_key = os.getenv("DEEPSEEK_API_KEY")
+    return OpenAI(**kwargs)
+
+embedding_client = create_openai_client(
+    api_key=os.getenv("EMBEDDING_API_KEY"),
+    base_url=os.getenv("EMBEDDING_BASE_URL")
 )
 
-embedding_client = OpenAI(
-    base_url = os.getenv("EMBEDDING_BASE_URL"),
-    api_key = os.getenv("EMBEDDING_API_KEY")
+
+deepseek_client = create_openai_client(
+    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    base_url=os.getenv("DEEPSEEK_BASE_URL")
 )
+
+
 
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
@@ -182,3 +190,24 @@ def cosine_similarity(vector1: list[float], vector2: list[float]) -> float:
         return 0.0
 
     return dot_product / (norm1 * norm2)
+
+
+def build_chunk_embeddings(chunks: list[str]) -> list[dict]:
+    items = []
+
+    for index, chunk in enumerate(chunks):
+        clean_chunk = chunk.strip()
+
+        if not clean_chunk:
+            continue
+
+        embedding = get_embedding(clean_chunk)
+
+        items.append({
+            "index": index,
+            "text": clean_chunk,
+            "embedding": embedding
+        })
+
+    return items
+

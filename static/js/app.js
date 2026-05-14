@@ -19,8 +19,11 @@ const similarText1 = document.querySelector("#similarText1");
 const similarText2 = document.querySelector("#similarText2");
 const similarityBtn = document.querySelector("#similarityBtn");
 const similarityBox = document.querySelector("#similarityBox");
+const chunkEmbeddingBtn = document.querySelector("#chunkEmbeddingBtn");
+const chunkEmbeddingBox = document.querySelector("#chunkEmbeddingBox");
 let currentText = "";
 let currentChunks = [];
+let currentChunkEmbeddings = [];
 function scrollToBottom(func) {
     func.scrollTop = func.scrollHeight;
     // console.log(chatBox.scrollHeight);
@@ -290,7 +293,7 @@ async function splitCurrentText() {
             body: JSON.stringify({
                 text: text,
                 chunk_size: 500,
-                overlap: 200
+                overlap: 100
             })
         });
         let data = {};
@@ -385,6 +388,62 @@ async function compareSimilarity() {
     }
 }
 
+
+async function generateChunkEmbeddings() {
+    try {
+        if (currentChunks.length === 0) {
+            result.innerText = "请先完成文本切分";
+            return;
+        }
+
+        chunkEmbeddingBtn.disabled = true;
+        chunkEmbeddingBtn.innerText = "生成中...";
+        result.innerText = "正在为 chunks 生成 embeddings...";
+        chunkEmbeddingBox.innerText = "生成中，请稍等...";
+
+        const response = await fetch("/users/chunk-embeddings", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                chunks: currentChunks
+            })
+        });
+
+        let data = {};
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            result.innerText = data.detail || `生成 embeddings 失败，状态码：${response.status}`;
+            chunkEmbeddingBox.innerText = data.detail || "生成 embeddings 失败";
+            return;
+        }
+
+        currentChunkEmbeddings = data.items || [];
+
+        result.innerText = "Chunk embeddings 生成成功，共 " + data.count + " 段";
+
+        chunkEmbeddingBox.innerText =
+            "生成成功\n" +
+            "chunk 数量：" + data.count + "\n" +
+            "向量维度：" + data.embedding_dimension + "\n\n" +
+            "已保存到 currentChunkEmbeddings，下一课会用它来做相似度检索。";
+
+    } catch (error) {
+        console.log("生成 chunk embeddings 失败：", error);
+        result.innerText = "网络错误，生成 chunk embeddings 失败";
+        chunkEmbeddingBox.innerText = "网络错误，生成 chunk embeddings 失败";
+    } finally {
+        chunkEmbeddingBtn.disabled = false;
+        chunkEmbeddingBtn.innerText = "生成 Chunk Embeddings";
+    }
+}
+chunkEmbeddingBtn.addEventListener("click", generateChunkEmbeddings);
 similarityBtn.addEventListener("click", compareSimilarity);
 chunkBtn.addEventListener("click", splitCurrentText);
 docAskBtn.addEventListener("click", askDocument);

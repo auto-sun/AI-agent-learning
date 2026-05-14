@@ -19,3 +19,6 @@ class ChunkData(BaseModel):
 class SimilarityData(BaseModel):
     text1: str
     text2: str
+
+class ChunkEmbeddingData(BaseModel):
+    chunks: list[str]

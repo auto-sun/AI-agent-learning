@@ -198,4 +198,44 @@ def compare_similarity(data: SimilarityData):
             detail=f"相似度计算失败：{str(e)}"
         )
 
+
+@router.post("/chunk-embeddings")
+def create_chunk_embeddings(data: ChunkEmbeddingData):
+    if not data.chunks:
+        raise HTTPException(
+            status_code=400,
+            detail="没有可生成 embedding 的 chunks"
+        )
+
+    if len(data.chunks) > 50:
+        raise HTTPException(
+            status_code=400,
+            detail="当前学习版本一次最多处理 50 个 chunks"
+        )
+
+    try:
+        items = build_chunk_embeddings(data.chunks)
+
+        if not items:
+            raise HTTPException(
+                status_code=400,
+                detail="chunks 内容为空，无法生成 embeddings"
+            )
+
+        embedding_dimension = len(items[0]["embedding"])
+
+        return {
+            "count": len(items),
+            "embedding_dimension": embedding_dimension,
+            "items": items
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"生成 chunk embeddings 失败：{str(e)}"
+        )
         

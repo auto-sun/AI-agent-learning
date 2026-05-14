@@ -71,9 +71,13 @@ li {
     margin-bottom: 6px;
 }
 
-#similarityBox, #chatBox, #textPreview,
-#summaryBox, #docAnswerBox,
-#chunkBox {
+#similarityBox,
+#chatBox,
+#textPreview,
+#summaryBox,
+#docAnswerBox,
+#chunkBox,
+#chunkEmbeddingBox {
     margin-top: 12px;
     border: 1px solid #ccc;
     min-height: 80px;
