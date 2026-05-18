@@ -1,8 +1,8 @@
 import os
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from services.text_splitter import split_text
-from schemas.users import *
-from services.ai_services import *
+from schemas.users import ChunkData, DocQuestionData, QuestionData, SummaryData
+from services.ai_services import ask_ai, ask_document, summarize_text
 
 
 
@@ -165,77 +165,3 @@ def create_chunks(data: ChunkData):
         "chunk_count": len(chunks),
         "chunks": chunks
     }
-
-
-@router.post("/similarity")
-def compare_similarity(data: SimilarityData):
-    if not data.text1.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="text1 不能为空"
-        )
-    
-    if not data.text2.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="text2 不能为空"
-        )
-    
-    try:
-        embedding1 = get_embedding(data.text1)
-        embedding2 = get_embedding(data.text2)
-
-        score = cosine_similarity(embedding1, embedding2)
-        return {
-            "similarity": score,
-            "embedding_dimension": len(embedding1),
-            "text1_preview": data.text1[:50],
-            "text2_preview": data.text2[:50]
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"相似度计算失败：{str(e)}"
-        )
-
-
-@router.post("/chunk-embeddings")
-def create_chunk_embeddings(data: ChunkEmbeddingData):
-    if not data.chunks:
-        raise HTTPException(
-            status_code=400,
-            detail="没有可生成 embedding 的 chunks"
-        )
-
-    if len(data.chunks) > 50:
-        raise HTTPException(
-            status_code=400,
-            detail="当前学习版本一次最多处理 50 个 chunks"
-        )
-
-    try:
-        items = build_chunk_embeddings(data.chunks)
-
-        if not items:
-            raise HTTPException(
-                status_code=400,
-                detail="chunks 内容为空，无法生成 embeddings"
-            )
-
-        embedding_dimension = len(items[0]["embedding"])
-
-        return {
-            "count": len(items),
-            "embedding_dimension": embedding_dimension,
-            "items": items
-        }
-
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"生成 chunk embeddings 失败：{str(e)}"
-        )
-        

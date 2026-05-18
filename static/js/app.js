@@ -15,15 +15,20 @@ const docAskBtn = document.querySelector("#docAskBtn");
 const docAnswerBox = document.querySelector("#docAnswerBox");
 const chunkBtn = document.querySelector("#chunkBtn");
 const chunkBox = document.querySelector("#chunkBox");
-const similarText1 = document.querySelector("#similarText1");
-const similarText2 = document.querySelector("#similarText2");
-const similarityBtn = document.querySelector("#similarityBtn");
-const similarityBox = document.querySelector("#similarityBox");
-const chunkEmbeddingBtn = document.querySelector("#chunkEmbeddingBtn");
-const chunkEmbeddingBox = document.querySelector("#chunkEmbeddingBox");
+const useCurrentTextBtn = document.querySelector("#useCurrentTextBtn");
+const addRagTextBtn = document.querySelector("#addRagTextBtn");
+const ragTextInput = document.querySelector("#ragTextInput");
+const ragTextInfo = document.querySelector("#ragTextInfo");
+const ragStoreBox = document.querySelector("#ragStoreBox");
+const ragQuestionInput = document.querySelector("#ragQuestionInput");
+const ragAskBtn = document.querySelector("#ragAskBtn");
+const ragAnswerBox = document.querySelector("#ragAnswerBox");
+const ragReferenceBox = document.querySelector("#ragReferenceBox");
 let currentText = "";
 let currentChunks = [];
-let currentChunkEmbeddings = [];
+const RAG_CHUNK_SIZE = 500;
+const RAG_OVERLAP = 100;
+const RAG_MAX_CHUNKS = 120;
 function scrollToBottom(func) {
     func.scrollTop = func.scrollHeight;
     // console.log(chatBox.scrollHeight);
@@ -323,91 +328,111 @@ async function splitCurrentText() {
 }
 
 
-async function compareSimilarity() {
-    try {
-        const text1 = similarText1.value.trim();
-        const text2 = similarText2.value.trim();
-
-        if (text1 === "") {
-            result.innerText = "请输入文本1";
-            return;
-        }
-        if (text2 === "") {
-            result.innerText = "请输入文本2";
-            return;
-        }
-
-        similarityBtn.disabled = true;
-        similarityBtn.innerText = "计算中...";
-        result.innerText = "正在计算相似度...";
-        similarityBox.innerText = "计算中，请稍等...";
-
-        const response = await fetch("/users/similarity", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                text1: text1,
-                text2: text2
-            })
-        });
-
-        let data = {};
-        try {
-            data = await response.json();
-        } catch {
-            data = {};
-        }
-        if (!response.ok) {
-            result.innerText = data.detail || `计算相似度失败，状态码：${response.status}`;
-            similarityBox.innerText = data.detail || "计算相似度失败";
-            return;
-        }
-
-        const score = data.similarity;
-        if (typeof score !== "number") {
-            throw new Error("后端没有返回有效的 similarity 数值");
-        }
-        result.innerText = "相似度计算成功";
-
-        similarityBox.innerText =
-            "相似度分数：" + score.toFixed(4) + "\n" +
-            "向量维度：" + data.embedding_dimension + "\n\n" +
-            "文本1：" + data.text1_preview + "\n" +
-            "文本2：" + data.text2_preview;
+function useCurrentTextForRag() {
+    const text = currentText.trim();
+    if (text === "") {
+        result.innerText = "请先上传 txt 文件";
+        return;
     }
-    catch (error) {
-        console.error("计算相似度失败：", error);
-        result.innerText = "网络错误，计算相似度失败";
-        similarityBox.innerText = "网络错误，计算相似度失败：" + error.message;
+
+    ragTextInput.value = text;
+    updateRagTextInfo();
+    result.innerText = "已填入当前上传文本";
+}
+
+function estimateChunkCount(text) {
+    const cleanText = text.trim();
+    if (cleanText === "") {
+        return 0;
     }
-    finally {
-        similarityBtn.disabled = false;
-        similarityBtn.innerText = "计算相似度";
+
+    let count = 0;
+    let start = 0;
+    const textLength = cleanText.length;
+
+    while (start < textLength) {
+        count += 1;
+        const end = start + RAG_CHUNK_SIZE;
+
+        if (end >= textLength) {
+            break;
+        }
+
+        start = end - RAG_OVERLAP;
+    }
+
+    return count;
+}
+
+function updateRagTextInfo() {
+    const text = ragTextInput.value.trim();
+    const chunkCount = estimateChunkCount(text);
+    ragTextInfo.innerText = "当前字数：" + text.length + "，预计 chunk 数：" + chunkCount;
+
+    if (chunkCount > RAG_MAX_CHUNKS) {
+        ragTextInfo.innerText += "，超过当前学习版上限 " + RAG_MAX_CHUNKS;
     }
 }
 
+function renderRagReferences(references) {
+    ragReferenceBox.innerHTML = "";
 
-async function generateChunkEmbeddings() {
+    if (!references || references.length === 0) {
+        ragReferenceBox.innerText = "暂无参考片段";
+        return;
+    }
+
+    for (let i = 0; i < references.length; i++) {
+        const item = references[i];
+        const div = document.createElement("div");
+        div.classList.add("reference-item");
+
+        const title = document.createElement("div");
+        title.classList.add("reference-title");
+        title.innerText = "参考片段 " + (i + 1) + "，相似度：" + Number(item.score).toFixed(4);
+
+        const content = document.createElement("div");
+        content.innerText = item.content || "";
+
+        div.appendChild(title);
+        div.appendChild(content);
+        ragReferenceBox.appendChild(div);
+    }
+}
+
+async function addRagText() {
     try {
-        if (currentChunks.length === 0) {
-            result.innerText = "请先完成文本切分";
+        const text = ragTextInput.value.trim();
+        const chunkCount = estimateChunkCount(text);
+
+        if (text === "") {
+            result.innerText = "请输入要加入知识库的文本";
             return;
         }
 
-        chunkEmbeddingBtn.disabled = true;
-        chunkEmbeddingBtn.innerText = "生成中...";
-        result.innerText = "正在为 chunks 生成 embeddings...";
-        chunkEmbeddingBox.innerText = "生成中，请稍等...";
+        if (chunkCount > RAG_MAX_CHUNKS) {
+            result.innerText = "文本太长，请分多次添加";
+            ragStoreBox.innerText =
+                "当前预计 chunk 数：" + chunkCount + "\n" +
+                "当前学习版最多支持：" + RAG_MAX_CHUNKS + "\n" +
+                "建议先截取一部分文本，或者把文档拆成几次添加。";
+            return;
+        }
 
-        const response = await fetch("/users/chunk-embeddings", {
+        addRagTextBtn.disabled = true;
+        addRagTextBtn.innerText = "添加中...";
+        result.innerText = "正在添加到知识库...";
+        ragStoreBox.innerText = "添加中，请稍等...";
+
+        const response = await fetch("/rag/add-text", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                chunks: currentChunks
+                text: text,
+                chunk_size: RAG_CHUNK_SIZE,
+                overlap: RAG_OVERLAP
             })
         });
 
@@ -419,32 +444,86 @@ async function generateChunkEmbeddings() {
         }
 
         if (!response.ok) {
-            result.innerText = data.detail || `生成 embeddings 失败，状态码：${response.status}`;
-            chunkEmbeddingBox.innerText = data.detail || "生成 embeddings 失败";
+            result.innerText = data.detail || `添加失败，状态码：${response.status}`;
+            ragStoreBox.innerText = data.detail || "添加失败";
             return;
         }
 
-        currentChunkEmbeddings = data.items || [];
-
-        result.innerText = "Chunk embeddings 生成成功，共 " + data.count + " 段";
-
-        chunkEmbeddingBox.innerText =
-            "生成成功\n" +
-            "chunk 数量：" + data.count + "\n" +
-            "向量维度：" + data.embedding_dimension + "\n\n" +
-            "已保存到 currentChunkEmbeddings，下一课会用它来做相似度检索。";
-
+        result.innerText = "知识库添加成功";
+        ragStoreBox.innerText =
+            data.message + "\n" +
+            "文本字数：" + data.text_length + "\n" +
+            "本次添加 chunk 数：" + data.chunk_count + "\n" +
+            "知识库总 chunk 数：" + data.total_chunks;
     } catch (error) {
-        console.log("生成 chunk embeddings 失败：", error);
-        result.innerText = "网络错误，生成 chunk embeddings 失败";
-        chunkEmbeddingBox.innerText = "网络错误，生成 chunk embeddings 失败";
+        console.log("添加知识库失败：", error);
+        result.innerText = "网络错误，添加知识库失败";
+        ragStoreBox.innerText = "网络错误，添加知识库失败";
     } finally {
-        chunkEmbeddingBtn.disabled = false;
-        chunkEmbeddingBtn.innerText = "生成 Chunk Embeddings";
+        addRagTextBtn.disabled = false;
+        addRagTextBtn.innerText = "添加到知识库";
     }
 }
-chunkEmbeddingBtn.addEventListener("click", generateChunkEmbeddings);
-similarityBtn.addEventListener("click", compareSimilarity);
+
+async function askRag() {
+    try {
+        const question = ragQuestionInput.value.trim();
+        if (question === "") {
+            result.innerText = "请输入知识库问题";
+            return;
+        }
+
+        ragAskBtn.disabled = true;
+        ragAskBtn.innerText = "提问中...";
+        result.innerText = "AI 正在检索知识库...";
+        ragAnswerBox.innerText = "正在回答，请稍等...";
+        ragReferenceBox.innerText = "正在检索参考片段...";
+
+        const response = await fetch("/rag/ask", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                question: question,
+                top_k: 3
+            })
+        });
+
+        let data = {};
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            result.innerText = data.detail || `知识库提问失败，状态码：${response.status}`;
+            ragAnswerBox.innerText = data.detail || "知识库提问失败";
+            ragReferenceBox.innerText = "暂无参考片段";
+            return;
+        }
+
+        result.innerText = "知识库问答完成";
+        ragAnswerBox.innerText = data.answer || "没有返回回答";
+        renderRagReferences(data.references);
+        ragQuestionInput.value = "";
+    } catch (error) {
+        console.log("知识库提问失败：", error);
+        result.innerText = "网络错误，知识库提问失败";
+        ragAnswerBox.innerText = "网络错误，知识库提问失败";
+        ragReferenceBox.innerText = "暂无参考片段";
+    } finally {
+        ragAskBtn.disabled = false;
+        ragAskBtn.innerText = "知识库提问";
+    }
+}
+
+
+useCurrentTextBtn.addEventListener("click", useCurrentTextForRag);
+addRagTextBtn.addEventListener("click", addRagText);
+ragAskBtn.addEventListener("click", askRag);
+ragTextInput.addEventListener("input", updateRagTextInfo);
 chunkBtn.addEventListener("click", splitCurrentText);
 docAskBtn.addEventListener("click", askDocument);
 summaryBtn.addEventListener("click", summarizeText);
@@ -458,6 +537,11 @@ docQuestionInput.addEventListener("keydown", function (event) {
 questionInput.addEventListener("keydown", function (event) {
     if (event.key === "Enter") {
         sendQuestion();
+    }
+});
+ragQuestionInput.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+        askRag();
     }
 });
 loadFiles();

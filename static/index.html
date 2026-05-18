@@ -53,26 +53,26 @@
 
     <div id="chunkBox">这里显示 chunk 结果</div>
 
-    <h3>Chunk Embeddings</h3>
+    <h2>4.RAG 知识库问答</h2>
 
+    <h3>添加知识文本</h3>
     <div class="row">
-        <button id="chunkEmbeddingBtn">生成 Chunk Embeddings</button>
+        <button id="useCurrentTextBtn">使用当前上传文本</button>
+        <button id="addRagTextBtn">添加到知识库</button>
     </div>
 
-    <div id="chunkEmbeddingBox">这里显示 chunk embedding 结果</div>
+    <textarea id="ragTextInput" rows="8" placeholder="请输入要加入知识库的文本"></textarea>
+    <p id="ragTextInfo">当前字数：0，预计 chunk 数：0</p>
+    <div id="ragStoreBox">这里显示知识库添加结果</div>
 
-    <h3>Embedding 相似度测试</h3>
-
+    <h3>向知识库提问</h3>
     <div class="row">
-        <input id="similarText1" type="text" placeholder="请输入文本 1">
+        <input id="ragQuestionInput" type="text" placeholder="请输入知识库问题">
+        <button id="ragAskBtn">知识库提问</button>
     </div>
 
-    <div class="row">
-        <input id="similarText2" type="text" placeholder="请输入文本 2">
-        <button id="similarityBtn">计算相似度</button>
-    </div>
-
-    <div id="similarityBox">这里显示相似度结果</div>
+    <div id="ragAnswerBox">这里显示知识库回答</div>
+    <div id="ragReferenceBox">这里显示参考片段</div>
 
     <script src="/static/js/app.js"></script>
 </body>

@@ -2,7 +2,6 @@ import os
 
 from dotenv import load_dotenv
 from openai import OpenAI
-import math
 
 
 load_dotenv()
@@ -19,21 +18,13 @@ def create_openai_client(api_key: str | None, base_url: str | None = None) -> Op
 
     return OpenAI(**kwargs)
 
-embedding_client = create_openai_client(
-    api_key=os.getenv("EMBEDDING_API_KEY"),
-    base_url=os.getenv("EMBEDDING_BASE_URL")
-)
-
-
 deepseek_client = create_openai_client(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     base_url=os.getenv("DEEPSEEK_BASE_URL")
 )
 
 
-
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
 
 
 
@@ -131,8 +122,6 @@ def summarize_text(text: str) -> str:
 
     return completion.choices[0].message.content
 
-    
-
 
 def ask_document(text: str, question: str) -> str:
     """
@@ -156,58 +145,3 @@ def ask_document(text: str, question: str) -> str:
             max_tokens=800,
         )
     return completion.choices[0].message.content
-
-
-def get_embedding(text: str) -> list[float]:
-    text = text.strip().replace("\n", " ")
-
-    if not text:
-        raise ValueError("文本不能为空")
-
-    response = embedding_client.embeddings.create(
-        model=EMBEDDING_MODEL,
-        input=text
-    )
-
-    return response.data[0].embedding
-
-
-
-
-def cosine_similarity(vector1: list[float], vector2: list[float]) -> float:
-    if len(vector1) != len(vector2):
-        raise ValueError(
-            f"两个向量长度不一致：vector1={len(vector1)}, vector2={len(vector2)}"
-        )
-    if not vector1 or not vector2:
-        raise ValueError("向量不能为空")
-    
-    dot_product = sum(a * b for a, b in zip(vector1, vector2))
-    norm1 = math.sqrt(sum(a * a for a in vector1))
-    norm2 = math.sqrt(sum(b * b for b in vector2))
-
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-
-    return dot_product / (norm1 * norm2)
-
-
-def build_chunk_embeddings(chunks: list[str]) -> list[dict]:
-    items = []
-
-    for index, chunk in enumerate(chunks):
-        clean_chunk = chunk.strip()
-
-        if not clean_chunk:
-            continue
-
-        embedding = get_embedding(clean_chunk)
-
-        items.append({
-            "index": index,
-            "text": clean_chunk,
-            "embedding": embedding
-        })
-
-    return items
-
