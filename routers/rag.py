@@ -16,6 +16,8 @@ def add_text(data: AddTextRequest):
             text=data.text,
             chunk_size=data.chunk_size,
             overlap=data.overlap,
+            source_name=data.source_name,
+            source_type="manual",
         )
 
         return result
@@ -55,7 +57,15 @@ def ask(data: AskRequest):
         }
 
     context = "\n\n".join([
-        f"资料片段 {index + 1}：\n{item['content']}"
+        (
+            f"资料片段 {index + 1}：\n"
+            f"source_name：{item.get('source_name', '未知来源')}\n"
+            f"source_type：{item.get('source_type', 'unknown')}\n"
+            f"chunk_id：{item['chunk_id']}\n"
+            f"chunk_index：{item.get('chunk_index', -1)}\n"
+            f"score：{item['score']:.4f}\n"
+            f"content：{item['content']}"
+        )
         for index, item in enumerate(search_results)
     ])
 
@@ -149,6 +159,8 @@ def add_file(data: AddFileRequest):
         text=text,
         chunk_size=data.chunk_size,
         overlap=data.overlap,
+        source_name=data.source_name or data.filename,
+        source_type="file",
     )
 
     return {
@@ -201,6 +213,8 @@ async def upload_and_add(
         text=text,
         chunk_size=chunk_size,
         overlap=overlap,
+        source_name=filename,
+        source_type="upload_file",
     )
 
     return {

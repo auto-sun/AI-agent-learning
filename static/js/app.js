@@ -17,6 +17,7 @@ const chunkBtn = document.querySelector("#chunkBtn");
 const chunkBox = document.querySelector("#chunkBox");
 const useCurrentTextBtn = document.querySelector("#useCurrentTextBtn");
 const addRagTextBtn = document.querySelector("#addRagTextBtn");
+const ragSourceNameInput = document.querySelector("#ragSourceNameInput");
 const ragTextInput = document.querySelector("#ragTextInput");
 const ragTextInfo = document.querySelector("#ragTextInfo");
 const ragStoreBox = document.querySelector("#ragStoreBox");
@@ -34,6 +35,7 @@ const ragSearchInput = document.querySelector("#ragSearchInput");
 const ragSearchBtn = document.querySelector("#ragSearchBtn");
 const ragSearchBox = document.querySelector("#ragSearchBox");
 let currentText = "";
+let currentFilename = "";
 let currentChunks = [];
 const RAG_CHUNK_SIZE = 500;
 const RAG_OVERLAP = 100;
@@ -209,6 +211,7 @@ async function uploadFile() {
         }
         result.innerText = data.msg;
         currentText = data.text || "";
+        currentFilename = data.filename || "";
         textPreview.innerText = currentText;
         fileInput.value = "";
         await loadFiles();
@@ -393,6 +396,7 @@ function useCurrentTextForRag() {
     }
 
     ragTextInput.value = text;
+    ragSourceNameInput.value = currentFilename || "当前上传文本";
     updateRagTextInfo();
     result.innerText = "已填入当前上传文本";
 }
@@ -440,6 +444,32 @@ function formatScore(score) {
     return numberScore.toFixed(4);
 }
 
+function formatRagMeta(item) {
+    const meta = [];
+
+    if (item.source_name) {
+        meta.push("来源：" + item.source_name);
+    }
+
+    if (item.source_type) {
+        meta.push("类型：" + item.source_type);
+    }
+
+    if (item.chunk_index !== undefined && item.chunk_index !== -1) {
+        meta.push("chunk_index：" + item.chunk_index);
+    }
+
+    if (item.chunk_id !== undefined) {
+        meta.push("chunk_id：" + item.chunk_id);
+    }
+
+    if (item.created_at) {
+        meta.push("时间：" + item.created_at);
+    }
+
+    return meta.join("，");
+}
+
 function renderRagResultList(container, items, titlePrefix, emptyText) {
     container.innerHTML = "";
 
@@ -457,6 +487,11 @@ function renderRagResultList(container, items, titlePrefix, emptyText) {
         title.classList.add("reference-title");
         title.innerText = titlePrefix + " " + (i + 1) + "，相似度：" + formatScore(item.score);
 
+        const metaText = formatRagMeta(item);
+        if (metaText) {
+            title.innerText += "，" + metaText;
+        }
+
         const content = document.createElement("div");
         content.innerText = item.content || "";
 
@@ -468,6 +503,11 @@ function renderRagResultList(container, items, titlePrefix, emptyText) {
 
 function renderRagReferences(references) {
     renderRagResultList(ragReferenceBox, references, "参考片段", "暂无参考片段");
+}
+
+function getRagSourceName() {
+    const sourceName = ragSourceNameInput.value.trim();
+    return sourceName || "手动输入文本";
 }
 
 async function addRagText() {
@@ -502,7 +542,8 @@ async function addRagText() {
             body: JSON.stringify({
                 text: text,
                 chunk_size: RAG_CHUNK_SIZE,
-                overlap: RAG_OVERLAP
+                overlap: RAG_OVERLAP,
+                source_name: getRagSourceName()
             })
         });
 
@@ -542,6 +583,14 @@ function renderRagAddResult(container, data) {
         lines.push("文件：" + data.filename);
     }
 
+    if (data.source_name) {
+        lines.push("来源名称：" + data.source_name);
+    }
+
+    if (data.source_type) {
+        lines.push("来源类型：" + data.source_type);
+    }
+
     lines.push("添加结果：" + (data.message || "添加成功"));
 
     if (data.text_length !== undefined) {
@@ -554,6 +603,10 @@ function renderRagAddResult(container, data) {
 
     if (data.total_chunks !== undefined) {
         lines.push("知识库总 chunk 数：" + data.total_chunks);
+    }
+
+    if (data.added_chunk_ids && data.added_chunk_ids.length > 0) {
+        lines.push("新增 chunk_id：" + data.added_chunk_ids.join(", "));
     }
 
     container.innerText = lines.join("\n");
@@ -581,7 +634,8 @@ async function addSelectedRagFile() {
             body: JSON.stringify({
                 filename: filename,
                 chunk_size: RAG_CHUNK_SIZE,
-                overlap: RAG_OVERLAP
+                overlap: RAG_OVERLAP,
+                source_name: filename
             })
         });
 
