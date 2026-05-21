@@ -18,6 +18,7 @@ const chunkBox = document.querySelector("#chunkBox");
 const useCurrentTextBtn = document.querySelector("#useCurrentTextBtn");
 const addRagTextBtn = document.querySelector("#addRagTextBtn");
 const ragSourceNameInput = document.querySelector("#ragSourceNameInput");
+const allowDuplicateInput = document.querySelector("#allowDuplicateInput");
 const ragTextInput = document.querySelector("#ragTextInput");
 const ragTextInfo = document.querySelector("#ragTextInfo");
 const ragStoreBox = document.querySelector("#ragStoreBox");
@@ -510,6 +511,10 @@ function getRagSourceName() {
     return sourceName || "手动输入文本";
 }
 
+function isDuplicateAllowed() {
+    return allowDuplicateInput.checked;
+}
+
 async function addRagText() {
     try {
         const text = ragTextInput.value.trim();
@@ -543,7 +548,8 @@ async function addRagText() {
                 text: text,
                 chunk_size: RAG_CHUNK_SIZE,
                 overlap: RAG_OVERLAP,
-                source_name: getRagSourceName()
+                source_name: getRagSourceName(),
+                allow_duplicate: isDuplicateAllowed()
             })
         });
 
@@ -560,12 +566,13 @@ async function addRagText() {
             return;
         }
 
-        result.innerText = "知识库添加成功";
-        ragStoreBox.innerText =
-            data.message + "\n" +
-            "文本字数：" + data.text_length + "\n" +
-            "本次添加 chunk 数：" + data.chunk_count + "\n" +
-            "知识库总 chunk 数：" + data.total_chunks;
+        if (data.duplicate) {
+            result.innerText = "检测到重复内容，已按后端去重规则处理";
+        } else {
+            result.innerText = "知识库添加成功";
+        }
+
+        renderRagAddResult(ragStoreBox, data);
     } catch (error) {
         console.log("添加知识库失败：", error);
         result.innerText = "网络错误，添加知识库失败";
@@ -593,16 +600,44 @@ function renderRagAddResult(container, data) {
 
     lines.push("添加结果：" + (data.message || "添加成功"));
 
+    if (data.duplicate !== undefined) {
+        lines.push("是否重复：" + (data.duplicate ? "是" : "否"));
+    }
+
     if (data.text_length !== undefined) {
         lines.push("文本字数：" + data.text_length);
     }
 
+    if (data.original_chunk_count !== undefined) {
+        lines.push("原始 chunk 数：" + data.original_chunk_count);
+    }
+
     if (data.chunk_count !== undefined) {
-        lines.push("本次添加 chunk 数：" + data.chunk_count);
+        lines.push("实际新增 chunk 数：" + data.chunk_count);
+    }
+
+    if (data.skipped_duplicate_chunks !== undefined) {
+        lines.push("跳过重复 chunk 数：" + data.skipped_duplicate_chunks);
     }
 
     if (data.total_chunks !== undefined) {
         lines.push("知识库总 chunk 数：" + data.total_chunks);
+    }
+
+    if (data.source_hash) {
+        lines.push("source_hash：" + data.source_hash);
+    }
+
+    if (data.duplicated_source_name) {
+        lines.push("重复来源名称：" + data.duplicated_source_name);
+    }
+
+    if (data.duplicated_source_type) {
+        lines.push("重复来源类型：" + data.duplicated_source_type);
+    }
+
+    if (data.duplicated_created_at) {
+        lines.push("重复来源添加时间：" + data.duplicated_created_at);
     }
 
     if (data.added_chunk_ids && data.added_chunk_ids.length > 0) {
@@ -635,7 +670,8 @@ async function addSelectedRagFile() {
                 filename: filename,
                 chunk_size: RAG_CHUNK_SIZE,
                 overlap: RAG_OVERLAP,
-                source_name: filename
+                source_name: filename,
+                allow_duplicate: isDuplicateAllowed()
             })
         });
 
@@ -652,7 +688,12 @@ async function addSelectedRagFile() {
             return;
         }
 
-        result.innerText = "文件已加入知识库";
+        if (data.duplicate) {
+            result.innerText = "检测到重复文件内容，已按后端去重规则处理";
+        } else {
+            result.innerText = "文件已加入知识库";
+        }
+
         renderRagAddResult(ragFileBox, data);
     } catch (error) {
         console.log("文件加入知识库失败：", error);
@@ -687,7 +728,9 @@ async function uploadAndAddRagFile() {
         formData.append("file", file);
 
         const response = await fetch(
-            "/rag/upload-and-add?chunk_size=" + RAG_CHUNK_SIZE + "&overlap=" + RAG_OVERLAP,
+            "/rag/upload-and-add?chunk_size=" + RAG_CHUNK_SIZE +
+            "&overlap=" + RAG_OVERLAP +
+            "&allow_duplicate=" + isDuplicateAllowed(),
             {
                 method: "POST",
                 body: formData
@@ -707,7 +750,12 @@ async function uploadAndAddRagFile() {
             return;
         }
 
-        result.innerText = "上传并加入知识库成功";
+        if (data.duplicate) {
+            result.innerText = "上传内容重复，已按后端去重规则处理";
+        } else {
+            result.innerText = "上传并加入知识库成功";
+        }
+
         ragUploadFileInput.value = "";
         renderRagAddResult(ragFileBox, data);
         await loadFiles();

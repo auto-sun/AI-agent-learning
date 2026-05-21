@@ -6,6 +6,7 @@ class AddTextRequest(BaseModel):
     chunk_size: int = Field(500, gt=0)
     overlap: int = Field(100, ge=0)
     source_name: str = Field("手动输入文本", max_length=100)
+    allow_duplicate: bool = False
 
 
 class AskRequest(BaseModel):
@@ -19,7 +20,7 @@ class AddFileRequest(BaseModel):
     chunk_size: int = 500
     overlap: int = 100
     source_name: str | None = Field(None, max_length=100)
-
+    allow_duplicate: bool = False
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1)
     top_k: int = 3

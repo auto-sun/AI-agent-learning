@@ -18,6 +18,7 @@ def add_text(data: AddTextRequest):
             overlap=data.overlap,
             source_name=data.source_name,
             source_type="manual",
+            allow_duplicate=data.allow_duplicate,
         )
 
         return result
@@ -161,6 +162,7 @@ def add_file(data: AddFileRequest):
         overlap=data.overlap,
         source_name=data.source_name or data.filename,
         source_type="file",
+        allow_duplicate=data.allow_duplicate,
     )
 
     return {
@@ -175,6 +177,7 @@ async def upload_and_add(
     file: UploadFile = File(...),
     chunk_size: int = 500,
     overlap: int = 100,
+    allow_duplicate: bool = False,
 ):
     if chunk_size <= 0:
         raise HTTPException(
@@ -215,6 +218,7 @@ async def upload_and_add(
         overlap=overlap,
         source_name=filename,
         source_type="upload_file",
+        allow_duplicate=allow_duplicate,
     )
 
     return {
