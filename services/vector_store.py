@@ -73,6 +73,7 @@ class VectorStore:
         }
 
     def search(self, query: str, top_k: int = 3) -> list[dict]:
+        """根据查询文本在知识库中搜索最相关的k个文本块。"""
         if not self.chunks:
             return []
 

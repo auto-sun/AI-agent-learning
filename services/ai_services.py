@@ -2,6 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from openai import OpenAI
+import math
 
 
 load_dotenv()
@@ -18,13 +19,17 @@ def create_openai_client(api_key: str | None, base_url: str | None = None) -> Op
 
     return OpenAI(**kwargs)
 
+
+
 deepseek_client = create_openai_client(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     base_url=os.getenv("DEEPSEEK_BASE_URL")
 )
 
 
+
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
 
 
 
@@ -122,7 +127,7 @@ def summarize_text(text: str) -> str:
 
     return completion.choices[0].message.content
 
-
+    
 def ask_document(text: str, question: str) -> str:
     """
     根据文档内容回答问题
@@ -145,3 +150,6 @@ def ask_document(text: str, question: str) -> str:
             max_tokens=800,
         )
     return completion.choices[0].message.content
+
+
+

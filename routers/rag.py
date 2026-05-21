@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
-from schemas.rag import AddTextRequest, AskRequest
+from fastapi import APIRouter, HTTPException,UploadFile, File
+from schemas.rag import *
 from services.ai_services import ask_ai
 from services.vector_store import VectorStore
+from services.file_service import list_txt_files, read_txt_file, save_upload_file
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
 
@@ -38,6 +39,19 @@ def ask(data: AskRequest):
         return {
             "answer": "当前知识库为空，请先添加知识文本。",
             "references": [],
+            "max_score": None,
+            "score_threshold": data.score_threshold,
+            "is_answerable": False,
+        }
+
+    max_score = search_results[0]["score"]
+    if max_score < data.score_threshold:
+        return {
+            "answer": "根据当前资料无法确定。",
+            "references": [],
+            "max_score": max_score,
+            "score_threshold": data.score_threshold,
+            "is_answerable": False,
         }
 
     context = "\n\n".join([
@@ -66,4 +80,130 @@ def ask(data: AskRequest):
     return {
         "answer": answer,
         "references": search_results,
+        "max_score": max_score,
+        "score_threshold": data.score_threshold,
+        "is_answerable": True,
+    }
+
+@router.post("/search")
+def search(data: SearchRequest):
+    results = vector_store.search(
+        query=data.query,
+        top_k=data.top_k,
+    )
+
+    return {
+        "query": data.query,
+        "results": results,
+    }
+
+@router.get("/files")
+def get_files():
+    files = list_txt_files()
+
+    return {
+        "files": files,
+        "file_count": len(files),
+    }
+
+@router.post("/add-file")
+def add_file(data: AddFileRequest):
+    if data.chunk_size <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="chunk_size 必须大于 0"
+        )
+
+    if data.overlap < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="overlap 不能小于 0"
+        )
+
+    if data.overlap >= data.chunk_size:
+        raise HTTPException(
+            status_code=400,
+            detail="overlap 必须小于 chunk_size"
+        )
+
+    try:
+        text = read_txt_file(data.filename)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="文件不存在"
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    if not text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="文件内容为空"
+        )
+
+    result = vector_store.add_text(
+        text=text,
+        chunk_size=data.chunk_size,
+        overlap=data.overlap,
+    )
+
+    return {
+        "filename": data.filename,
+        **result,
+    }
+
+
+
+@router.post("/upload-and-add")
+async def upload_and_add(
+    file: UploadFile = File(...),
+    chunk_size: int = 500,
+    overlap: int = 100,
+):
+    if chunk_size <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="chunk_size 必须大于 0"
+        )
+
+    if overlap < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="overlap 不能小于 0"
+        )
+
+    if overlap >= chunk_size:
+        raise HTTPException(
+            status_code=400,
+            detail="overlap 必须小于 chunk_size"
+        )
+
+    try:
+        filename = await save_upload_file(file)
+        text = read_txt_file(filename)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    if not text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="文件内容为空"
+        )
+
+    result = vector_store.add_text(
+        text=text,
+        chunk_size=chunk_size,
+        overlap=overlap,
+    )
+
+    return {
+        "filename": filename,
+        **result,
     }

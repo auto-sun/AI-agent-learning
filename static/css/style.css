@@ -15,7 +15,8 @@ h3 {
 }
 
 input,
-textarea {
+textarea,
+select {
     box-sizing: border-box;
     padding: 8px;
 }
@@ -23,6 +24,10 @@ textarea {
 textarea {
     width: 100%;
     resize: vertical;
+}
+
+select {
+    min-width: 220px;
 }
 
 button {
@@ -111,8 +116,10 @@ li {
 #docAnswerBox,
 #chunkBox,
 #ragStoreBox,
+#ragFileBox,
 #ragAnswerBox,
-#ragReferenceBox {
+#ragReferenceBox,
+#ragSearchBox {
     margin-top: 12px;
     border: 1px solid #ccc;
     min-height: 80px;

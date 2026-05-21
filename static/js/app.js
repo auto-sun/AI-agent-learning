@@ -20,15 +20,25 @@ const addRagTextBtn = document.querySelector("#addRagTextBtn");
 const ragTextInput = document.querySelector("#ragTextInput");
 const ragTextInfo = document.querySelector("#ragTextInfo");
 const ragStoreBox = document.querySelector("#ragStoreBox");
+const ragFileSelect = document.querySelector("#ragFileSelect");
+const refreshRagFilesBtn = document.querySelector("#refreshRagFilesBtn");
+const addRagFileBtn = document.querySelector("#addRagFileBtn");
+const ragUploadFileInput = document.querySelector("#ragUploadFileInput");
+const uploadAndAddRagBtn = document.querySelector("#uploadAndAddRagBtn");
+const ragFileBox = document.querySelector("#ragFileBox");
 const ragQuestionInput = document.querySelector("#ragQuestionInput");
 const ragAskBtn = document.querySelector("#ragAskBtn");
 const ragAnswerBox = document.querySelector("#ragAnswerBox");
 const ragReferenceBox = document.querySelector("#ragReferenceBox");
+const ragSearchInput = document.querySelector("#ragSearchInput");
+const ragSearchBtn = document.querySelector("#ragSearchBtn");
+const ragSearchBox = document.querySelector("#ragSearchBox");
 let currentText = "";
 let currentChunks = [];
 const RAG_CHUNK_SIZE = 500;
 const RAG_OVERLAP = 100;
 const RAG_MAX_CHUNKS = 120;
+const RAG_SCORE_THRESHOLD = 0.55;
 function scrollToBottom(func) {
     func.scrollTop = func.scrollHeight;
     // console.log(chatBox.scrollHeight);
@@ -70,6 +80,52 @@ async function loadFiles() {
         renderFileList(data.files)
     } catch (error) {
         console.log("获取列表失败: ", error);
+    }
+}
+function renderRagFileOptions(files) {
+    ragFileSelect.innerHTML = "";
+
+    if (!files || files.length === 0) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.innerText = "暂无 txt 文件";
+        ragFileSelect.appendChild(option);
+        ragFileSelect.disabled = true;
+        addRagFileBtn.disabled = true;
+        return;
+    }
+
+    ragFileSelect.disabled = false;
+    addRagFileBtn.disabled = false;
+
+    for (const fileName of files) {
+        const option = document.createElement("option");
+        option.value = fileName;
+        option.innerText = fileName;
+        ragFileSelect.appendChild(option);
+    }
+}
+async function loadRagFiles() {
+    try {
+        const response = await fetch("/rag/files");
+        let data = {};
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            ragFileBox.innerText = data.detail || `获取 RAG 文件列表失败，状态码：${response.status}`;
+            renderRagFileOptions([]);
+            return;
+        }
+
+        renderRagFileOptions(data.files || []);
+    } catch (error) {
+        console.log("获取 RAG 文件列表失败: ", error);
+        ragFileBox.innerText = "网络错误，获取 RAG 文件列表失败";
+        renderRagFileOptions([]);
     }
 }
 async function sendQuestion() {
@@ -156,6 +212,7 @@ async function uploadFile() {
         textPreview.innerText = currentText;
         fileInput.value = "";
         await loadFiles();
+        await loadRagFiles();
     } catch (error) {
         console.log("上传失败：", error);
         result.innerText = "网络错误，上传失败";
@@ -374,30 +431,43 @@ function updateRagTextInfo() {
     }
 }
 
-function renderRagReferences(references) {
-    ragReferenceBox.innerHTML = "";
+function formatScore(score) {
+    const numberScore = Number(score);
+    if (!Number.isFinite(numberScore)) {
+        return "无";
+    }
 
-    if (!references || references.length === 0) {
-        ragReferenceBox.innerText = "暂无参考片段";
+    return numberScore.toFixed(4);
+}
+
+function renderRagResultList(container, items, titlePrefix, emptyText) {
+    container.innerHTML = "";
+
+    if (!items || items.length === 0) {
+        container.innerText = emptyText;
         return;
     }
 
-    for (let i = 0; i < references.length; i++) {
-        const item = references[i];
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
         const div = document.createElement("div");
         div.classList.add("reference-item");
 
         const title = document.createElement("div");
         title.classList.add("reference-title");
-        title.innerText = "参考片段 " + (i + 1) + "，相似度：" + Number(item.score).toFixed(4);
+        title.innerText = titlePrefix + " " + (i + 1) + "，相似度：" + formatScore(item.score);
 
         const content = document.createElement("div");
         content.innerText = item.content || "";
 
         div.appendChild(title);
         div.appendChild(content);
-        ragReferenceBox.appendChild(div);
+        container.appendChild(div);
     }
+}
+
+function renderRagReferences(references) {
+    renderRagResultList(ragReferenceBox, references, "参考片段", "暂无参考片段");
 }
 
 async function addRagText() {
@@ -465,9 +535,143 @@ async function addRagText() {
     }
 }
 
+function renderRagAddResult(container, data) {
+    const lines = [];
+
+    if (data.filename) {
+        lines.push("文件：" + data.filename);
+    }
+
+    lines.push("添加结果：" + (data.message || "添加成功"));
+
+    if (data.text_length !== undefined) {
+        lines.push("文本字数：" + data.text_length);
+    }
+
+    if (data.chunk_count !== undefined) {
+        lines.push("本次添加 chunk 数：" + data.chunk_count);
+    }
+
+    if (data.total_chunks !== undefined) {
+        lines.push("知识库总 chunk 数：" + data.total_chunks);
+    }
+
+    container.innerText = lines.join("\n");
+}
+
+async function addSelectedRagFile() {
+    try {
+        const filename = ragFileSelect.value;
+
+        if (!filename) {
+            result.innerText = "请先选择一个 txt 文件";
+            return;
+        }
+
+        addRagFileBtn.disabled = true;
+        addRagFileBtn.innerText = "添加中...";
+        result.innerText = "正在把文件加入知识库...";
+        ragFileBox.innerText = "添加中，请稍等...";
+
+        const response = await fetch("/rag/add-file", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                filename: filename,
+                chunk_size: RAG_CHUNK_SIZE,
+                overlap: RAG_OVERLAP
+            })
+        });
+
+        let data = {};
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            result.innerText = data.detail || `文件加入失败，状态码：${response.status}`;
+            ragFileBox.innerText = data.detail || "文件加入失败";
+            return;
+        }
+
+        result.innerText = "文件已加入知识库";
+        renderRagAddResult(ragFileBox, data);
+    } catch (error) {
+        console.log("文件加入知识库失败：", error);
+        result.innerText = "网络错误，文件加入知识库失败";
+        ragFileBox.innerText = "网络错误，文件加入知识库失败";
+    } finally {
+        addRagFileBtn.disabled = ragFileSelect.disabled;
+        addRagFileBtn.innerText = "选择文件加入知识库";
+    }
+}
+
+async function uploadAndAddRagFile() {
+    try {
+        const file = ragUploadFileInput.files[0];
+
+        if (!file) {
+            result.innerText = "请先选择要上传的 txt 文件";
+            return;
+        }
+
+        if (!file.name.toLowerCase().endsWith(".txt")) {
+            result.innerText = "现在只允许上传 txt 文件";
+            return;
+        }
+
+        uploadAndAddRagBtn.disabled = true;
+        uploadAndAddRagBtn.innerText = "上传中...";
+        result.innerText = "正在上传并加入知识库...";
+        ragFileBox.innerText = "上传并添加中，请稍等...";
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch(
+            "/rag/upload-and-add?chunk_size=" + RAG_CHUNK_SIZE + "&overlap=" + RAG_OVERLAP,
+            {
+                method: "POST",
+                body: formData
+            }
+        );
+
+        let data = {};
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            result.innerText = data.detail || `上传并加入失败，状态码：${response.status}`;
+            ragFileBox.innerText = data.detail || "上传并加入失败";
+            return;
+        }
+
+        result.innerText = "上传并加入知识库成功";
+        ragUploadFileInput.value = "";
+        renderRagAddResult(ragFileBox, data);
+        await loadFiles();
+        await loadRagFiles();
+    } catch (error) {
+        console.log("上传并加入知识库失败：", error);
+        result.innerText = "网络错误，上传并加入知识库失败";
+        ragFileBox.innerText = "网络错误，上传并加入知识库失败";
+    } finally {
+        uploadAndAddRagBtn.disabled = false;
+        uploadAndAddRagBtn.innerText = "上传并加入知识库";
+    }
+}
+
 async function askRag() {
     try {
         const question = ragQuestionInput.value.trim();
+
         if (question === "") {
             result.innerText = "请输入知识库问题";
             return;
@@ -486,11 +690,13 @@ async function askRag() {
             },
             body: JSON.stringify({
                 question: question,
-                top_k: 3
+                top_k: 3,
+                score_threshold: RAG_SCORE_THRESHOLD
             })
         });
 
         let data = {};
+
         try {
             data = await response.json();
         } catch {
@@ -504,9 +710,21 @@ async function askRag() {
             return;
         }
 
-        result.innerText = "知识库问答完成";
-        ragAnswerBox.innerText = data.answer || "没有返回回答";
+        const maxScore = formatScore(data.max_score);
+        const threshold = formatScore(data.score_threshold);
+
+        if (data.is_answerable === false) {
+            result.innerText = "检索相关度不足，已停止硬答";
+        } else {
+            result.innerText = "知识库问答完成";
+        }
+
+        ragAnswerBox.innerText =
+            "最高相似度：" + maxScore + "，阈值：" + threshold + "\n\n" +
+            (data.answer || "没有返回回答");
+
         renderRagReferences(data.references);
+
         ragQuestionInput.value = "";
     } catch (error) {
         console.log("知识库提问失败：", error);
@@ -519,10 +737,73 @@ async function askRag() {
     }
 }
 
+async function searchRag() {
+    try {
+        const query = ragSearchInput.value.trim();
 
+        if (query === "") {
+            result.innerText = "请输入检索关键词";
+            return;
+        }
+
+        ragSearchBtn.disabled = true;
+        ragSearchBtn.innerText = "搜索中...";
+        result.innerText = "正在搜索知识库片段...";
+        ragSearchBox.innerText = "搜索中，请稍等...";
+
+        const response = await fetch("/rag/search", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                query: query,
+                top_k: 3
+            })
+        });
+
+        let data = {};
+
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            result.innerText = data.detail || `搜索失败，状态码：${response.status}`;
+            ragSearchBox.innerText = data.detail || "搜索失败";
+            return;
+        }
+
+        result.innerText = "搜索完成";
+
+        renderRagResultList(
+            ragSearchBox,
+            data.results,
+            "搜索结果",
+            "暂无搜索结果"
+        );
+
+        ragSearchInput.value = "";
+    } catch (error) {
+        console.log("搜索知识库失败：", error);
+        result.innerText = "网络错误，搜索知识库失败";
+        ragSearchBox.innerText = "网络错误，搜索知识库失败";
+    } finally {
+        ragSearchBtn.disabled = false;
+        ragSearchBtn.innerText = "搜索片段";
+    }
+}
+
+
+refreshRagFilesBtn.addEventListener("click", loadRagFiles);
+addRagFileBtn.addEventListener("click", addSelectedRagFile);
+uploadAndAddRagBtn.addEventListener("click", uploadAndAddRagFile);
 useCurrentTextBtn.addEventListener("click", useCurrentTextForRag);
 addRagTextBtn.addEventListener("click", addRagText);
 ragAskBtn.addEventListener("click", askRag);
+ragSearchBtn.addEventListener("click", searchRag);
 ragTextInput.addEventListener("input", updateRagTextInfo);
 chunkBtn.addEventListener("click", splitCurrentText);
 docAskBtn.addEventListener("click", askDocument);
@@ -544,4 +825,10 @@ ragQuestionInput.addEventListener("keydown", function (event) {
         askRag();
     }
 });
+ragSearchInput.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+        searchRag();
+    }
+});
 loadFiles();
+loadRagFiles();
