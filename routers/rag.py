@@ -1,13 +1,12 @@
 from fastapi import APIRouter, HTTPException,UploadFile, File
 from schemas.rag import *
 from services.ai_services import ask_ai
-from services.vector_store import VectorStore
+from services.chroma_vector_store import ChromaVectorStore
 from services.file_service import get_upload_file_path, list_supported_files, save_upload_file
 from services.document_parser import extract_text_from_file, SUPPORTED_EXTENSIONS
 router = APIRouter(prefix="/rag", tags=["RAG"])
 
-vector_store = VectorStore()
-
+vector_store = ChromaVectorStore()
 
 def add_uploaded_file_to_vector_store(
     filename: str,
