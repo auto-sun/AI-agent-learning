@@ -42,6 +42,7 @@ const RAG_CHUNK_SIZE = 500;
 const RAG_OVERLAP = 100;
 const RAG_MAX_CHUNKS = 120;
 const RAG_SCORE_THRESHOLD = 0.55;
+const RAG_SUPPORTED_EXTENSIONS = [".txt", ".md", ".pdf", ".docx"];
 function scrollToBottom(func) {
     func.scrollTop = func.scrollHeight;
     // console.log(chatBox.scrollHeight);
@@ -91,7 +92,7 @@ function renderRagFileOptions(files) {
     if (!files || files.length === 0) {
         const option = document.createElement("option");
         option.value = "";
-        option.innerText = "暂无 txt 文件";
+        option.innerText = "暂无支持的文档文件";
         ragFileSelect.appendChild(option);
         ragFileSelect.disabled = true;
         addRagFileBtn.disabled = true;
@@ -107,6 +108,13 @@ function renderRagFileOptions(files) {
         option.innerText = fileName;
         ragFileSelect.appendChild(option);
     }
+}
+
+function isSupportedRagFileName(fileName) {
+    const lowerName = fileName.toLowerCase();
+    return RAG_SUPPORTED_EXTENSIONS.some(function (extension) {
+        return lowerName.endsWith(extension);
+    });
 }
 async function loadRagFiles() {
     try {
@@ -598,6 +606,14 @@ function renderRagAddResult(container, data) {
         lines.push("来源类型：" + data.source_type);
     }
 
+    if (data.file_type) {
+        lines.push("文件类型：" + data.file_type);
+    }
+
+    if (data.file_suffix) {
+        lines.push("文件后缀：" + data.file_suffix);
+    }
+
     lines.push("添加结果：" + (data.message || "添加成功"));
 
     if (data.duplicate !== undefined) {
@@ -606,6 +622,10 @@ function renderRagAddResult(container, data) {
 
     if (data.text_length !== undefined) {
         lines.push("文本字数：" + data.text_length);
+    }
+
+    if (data.parsed_text_length !== undefined) {
+        lines.push("解析文本字数：" + data.parsed_text_length);
     }
 
     if (data.original_chunk_count !== undefined) {
@@ -652,7 +672,7 @@ async function addSelectedRagFile() {
         const filename = ragFileSelect.value;
 
         if (!filename) {
-            result.innerText = "请先选择一个 txt 文件";
+            result.innerText = "请先选择一个支持的文档文件";
             return;
         }
 
@@ -710,12 +730,12 @@ async function uploadAndAddRagFile() {
         const file = ragUploadFileInput.files[0];
 
         if (!file) {
-            result.innerText = "请先选择要上传的 txt 文件";
+            result.innerText = "请先选择要上传的文档文件";
             return;
         }
 
-        if (!file.name.toLowerCase().endsWith(".txt")) {
-            result.innerText = "现在只允许上传 txt 文件";
+        if (!isSupportedRagFileName(file.name)) {
+            result.innerText = "现在只允许上传 txt、md、pdf、docx 文件";
             return;
         }
 

@@ -2,11 +2,41 @@ from fastapi import APIRouter, HTTPException,UploadFile, File
 from schemas.rag import *
 from services.ai_services import ask_ai
 from services.vector_store import VectorStore
-from services.file_service import list_txt_files, read_txt_file, save_upload_file
-
+from services.file_service import get_upload_file_path, list_supported_files, save_upload_file
+from services.document_parser import extract_text_from_file, SUPPORTED_EXTENSIONS
 router = APIRouter(prefix="/rag", tags=["RAG"])
 
 vector_store = VectorStore()
+
+
+def add_uploaded_file_to_vector_store(
+    filename: str,
+    chunk_size: int,
+    overlap: int,
+    source_name: str,
+    source_type: str,
+    allow_duplicate: bool,
+) -> dict:
+    file_path = get_upload_file_path(filename)
+    parsed_file = extract_text_from_file(str(file_path))
+    text = parsed_file["text"]
+
+    result = vector_store.add_text(
+        text=text,
+        chunk_size=chunk_size,
+        overlap=overlap,
+        source_name=source_name,
+        source_type=source_type,
+        allow_duplicate=allow_duplicate,
+    )
+
+    return {
+        "filename": filename,
+        "file_type": parsed_file["file_type"],
+        "file_suffix": parsed_file["file_suffix"],
+        "parsed_text_length": parsed_file["text_length"],
+        **result,
+    }
 
 
 @router.post("/add-text")
@@ -110,11 +140,12 @@ def search(data: SearchRequest):
 
 @router.get("/files")
 def get_files():
-    files = list_txt_files()
+    files = list_supported_files()
 
     return {
         "files": files,
         "file_count": len(files),
+        "supported_extensions": sorted(SUPPORTED_EXTENSIONS),
     }
 
 @router.post("/add-file")
@@ -138,7 +169,14 @@ def add_file(data: AddFileRequest):
         )
 
     try:
-        text = read_txt_file(data.filename)
+        return add_uploaded_file_to_vector_store(
+            filename=data.filename,
+            chunk_size=data.chunk_size,
+            overlap=data.overlap,
+            source_name=data.source_name or data.filename,
+            source_type="file",
+            allow_duplicate=data.allow_duplicate,
+        )
     except FileNotFoundError:
         raise HTTPException(
             status_code=404,
@@ -149,26 +187,11 @@ def add_file(data: AddFileRequest):
             status_code=400,
             detail=str(e)
         )
-
-    if not text.strip():
+    except Exception as e:
         raise HTTPException(
-            status_code=400,
-            detail="文件内容为空"
+            status_code=500,
+            detail=f"文件解析或添加失败：{str(e)}"
         )
-
-    result = vector_store.add_text(
-        text=text,
-        chunk_size=data.chunk_size,
-        overlap=data.overlap,
-        source_name=data.source_name or data.filename,
-        source_type="file",
-        allow_duplicate=data.allow_duplicate,
-    )
-
-    return {
-        "filename": data.filename,
-        **result,
-    }
 
 
 
@@ -199,29 +222,21 @@ async def upload_and_add(
 
     try:
         filename = await save_upload_file(file)
-        text = read_txt_file(filename)
+        return add_uploaded_file_to_vector_store(
+            filename=filename,
+            chunk_size=chunk_size,
+            overlap=overlap,
+            source_name=filename,
+            source_type="upload_file",
+            allow_duplicate=allow_duplicate,
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=400,
             detail=str(e)
         )
-
-    if not text.strip():
+    except Exception as e:
         raise HTTPException(
-            status_code=400,
-            detail="文件内容为空"
+            status_code=500,
+            detail=f"文件上传、解析或添加失败：{str(e)}"
         )
-
-    result = vector_store.add_text(
-        text=text,
-        chunk_size=chunk_size,
-        overlap=overlap,
-        source_name=filename,
-        source_type="upload_file",
-        allow_duplicate=allow_duplicate,
-    )
-
-    return {
-        "filename": filename,
-        **result,
-    }

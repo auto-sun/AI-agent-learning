@@ -1,5 +1,6 @@
 from pathlib import Path
 from fastapi import UploadFile
+from services.document_parser import SUPPORTED_EXTENSIONS
 
 UPLOAD_DIR = Path("uploads")
 
@@ -30,23 +31,23 @@ def is_safe_filename(filename: str) -> bool:
 
     return True
 
-def list_txt_files() -> list[str]:
+def list_supported_files() -> list[str]:
     """
-    列出 uploads 目录下的 txt 文件。
+    列出 uploads 目录下支持解析的文件。
     """
     ensure_upload_dir()
 
     files = []
 
     for file_path in UPLOAD_DIR.iterdir():
-        if file_path.is_file() and file_path.suffix.lower() == ".txt":
+        if file_path.is_file() and file_path.suffix.lower() in SUPPORTED_EXTENSIONS:
             files.append(file_path.name)
 
     return files
 
-def read_txt_file(filename: str) -> str:
+def get_upload_file_path(filename: str) -> Path:
     """
-    读取 uploads 目录下的 txt 文件内容。
+    获取 uploads 目录下的安全文件路径。
     """
     ensure_upload_dir()
 
@@ -61,19 +62,16 @@ def read_txt_file(filename: str) -> str:
     if not file_path.is_file():
         raise ValueError("目标不是文件")
 
-    if file_path.suffix.lower() != ".txt":
-        raise ValueError("当前只支持读取 .txt 文件")
+    if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+        supported = "、".join(sorted(SUPPORTED_EXTENSIONS))
+        raise ValueError(f"当前只支持读取这些文件类型：{supported}")
 
-    try:
-        return file_path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        return file_path.read_text(encoding="gbk")
-    
+    return file_path
 
 
 async def save_upload_file(file: UploadFile) -> str:
     """
-    保存上传的 txt 文件到 uploads 目录。
+    保存上传的可解析文件到 uploads 目录。
     返回保存后的文件名。
     """
     ensure_upload_dir()
@@ -86,8 +84,11 @@ async def save_upload_file(file: UploadFile) -> str:
     if not is_safe_filename(filename):
         raise ValueError("文件名不合法")
 
-    if not filename.lower().endswith(".txt"):
-        raise ValueError("当前只支持上传 .txt 文件")
+    suffix = Path(filename).suffix.lower()
+
+    if suffix not in SUPPORTED_EXTENSIONS:
+        supported = "、".join(sorted(SUPPORTED_EXTENSIONS))
+        raise ValueError(f"当前只支持上传这些文件类型：{supported}")
 
     file_path = UPLOAD_DIR / filename
 
