@@ -1,111 +1,155 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 应用开发练习</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="./css/style.css">
 </head>
 
 <body>
+    <div class="page-shell">
+        <header class="app-header">
+            <div>
+                <p class="eyebrow">AI 应用开发练习</p>
+                <h1>知识库与文档助手</h1>
+            </div>
+            <p id="result">这里显示状态信息</p>
+        </header>
 
-    <h2>1.问答测试</h2>
-    <div class="row">
-        <input type="text" id="questionInput" placeholder="请输入问题">
-        <button id="sendBtn">发送</button>
+        <main class="app-main">
+            <section class="section-block">
+                <h2>1. 问答测试</h2>
+                <div class="row">
+                    <input type="text" id="questionInput" placeholder="请输入问题">
+                    <button id="sendBtn">发送</button>
+                </div>
+                <div id="chatBox"></div>
+            </section>
+
+            <section class="section-block">
+                <h2>2. 上传 txt 文件</h2>
+                <div class="row">
+                    <input type="file" id="fileInput" accept=".txt">
+                    <button id="uploadBtn">上传文件</button>
+                </div>
+
+                <h3>文件内容预览</h3>
+                <div id="textPreview">这里显示 txt 内容</div>
+
+                <h3>已上传文件列表</h3>
+                <ul id="fileList"></ul>
+            </section>
+
+            <section class="section-block">
+                <h2>3. 文档总结</h2>
+                <div class="row">
+                    <button id="summaryBtn">总结文档</button>
+                </div>
+
+                <h3>AI 总结结果</h3>
+                <div id="summaryBox">这里显示 AI 总结结果</div>
+
+                <h3>针对当前文档提问</h3>
+                <div class="row">
+                    <input id="docQuestionInput" type="text" placeholder="请输入关于当前文档的问题">
+                    <button id="docAskBtn">提问文档</button>
+                </div>
+
+                <div id="docAnswerBox">这里显示文档问答结果</div>
+
+                <h3>文本切分结果</h3>
+                <div class="row">
+                    <button id="chunkBtn">文本切分</button>
+                </div>
+
+                <div id="chunkBox">这里显示 chunk 结果</div>
+            </section>
+
+            <section class="section-block">
+                <h2>4. RAG 知识库问答</h2>
+
+                <div class="tool-group">
+                    <h3>添加知识文本</h3>
+                    <div class="row">
+                        <button id="useCurrentTextBtn">使用当前上传文本</button>
+                        <button id="addRagTextBtn">添加到知识库</button>
+                    </div>
+
+                    <div class="row">
+                        <input id="ragSourceNameInput" type="text" placeholder="来源名称（可选）">
+                    </div>
+
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="allowDuplicateInput">
+                        允许重复添加
+                    </label>
+
+                    <textarea id="ragTextInput" rows="8" placeholder="请输入要加入知识库的文本"></textarea>
+                    <p id="ragTextInfo">当前字数：0，预计 chunk 数：0</p>
+                    <div id="ragStoreBox">这里显示知识库添加结果</div>
+                </div>
+
+                <div class="tool-group">
+                    <h3>从文档文件加入知识库</h3>
+                    <div class="row">
+                        <select id="ragFileSelect"></select>
+                        <button id="refreshRagFilesBtn">刷新文件</button>
+                        <button id="addRagFileBtn">选择文件加入知识库</button>
+                    </div>
+
+                    <div class="row">
+                        <input type="file" id="ragUploadFileInput" accept=".txt,.md,.pdf,.docx">
+                        <button id="uploadAndAddRagBtn">上传并加入知识库</button>
+                    </div>
+
+                    <div id="ragFileBox">这里显示文件加入结果</div>
+                </div>
+
+                <div class="tool-group">
+                    <h3>向知识库提问</h3>
+                    <div class="row">
+                        <input id="ragQuestionInput" type="text" placeholder="请输入知识库问题">
+                        <button id="ragAskBtn">知识库提问</button>
+                    </div>
+
+                    <div id="ragAnswerBox">这里显示知识库回答</div>
+                    <div id="ragReferenceBox">这里显示参考片段</div>
+                </div>
+
+                <div class="tool-group">
+                    <h3>搜索知识库片段</h3>
+                    <div class="row">
+                        <input id="ragSearchInput" type="text" placeholder="请输入检索关键词">
+                        <button id="ragSearchBtn">搜索片段</button>
+                    </div>
+
+                    <div id="ragSearchBox">这里显示搜索结果</div>
+                </div>
+
+                <div class="tool-group">
+                    <h3>文档入库记录</h3>
+                    <div class="row">
+                        <button id="refreshDocumentRecordsBtn">刷新入库记录</button>
+                    </div>
+
+                    <div id="documentRecordBox">这里显示文档入库记录</div>
+                </div>
+
+                <div class="tool-group">
+                    <h3>问答历史</h3>
+                    <div class="row">
+                        <button id="refreshQaRecordsBtn">刷新问答历史</button>
+                    </div>
+
+                    <div id="qaRecordBox">这里显示问答历史</div>
+                </div>
+            </section>
+        </main>
     </div>
 
-    <p id="result">这里显示状态信息</p>
-    <div id="chatBox"></div>
-    <h2>2. 上传 txt 文件</h2>
-
-    <div class="row">
-        <input type="file" id="fileInput" accept=".txt">
-        <button id="uploadBtn">上传文件</button>
-    </div>
-
-    <h3>文件内容预览</h3>
-    <div id="textPreview">这里显示 txt 内容</div>
-
-    <h3>已上传文件列表</h3>
-    <ul id="fileList"></ul>
-
-    <h2>3.文档总结</h2>
-    <button id="summaryBtn">总结文档</button>
-
-    <h3>AI 总结结果</h3>
-    <div id="summaryBox">这里显示 AI 总结结果</div>
-
-    <h3>针对当前文档提问</h3>
-    <div class="row">
-        <input id="docQuestionInput" type="text" placeholder="请输入关于当前文档的问题">
-        <button id="docAskBtn">提问文档</button>
-    </div>
-
-    <div id="docAnswerBox">这里显示文档问答结果</div>
-
-    <h3>文本切分结果</h3>
-
-    <div class="row">
-        <button id="chunkBtn">文本切分</button>
-    </div>
-
-    <div id="chunkBox">这里显示 chunk 结果</div>
-
-    <h2>4.RAG 知识库问答</h2>
-
-    <h3>添加知识文本</h3>
-    <div class="row">
-        <button id="useCurrentTextBtn">使用当前上传文本</button>
-        <button id="addRagTextBtn">添加到知识库</button>
-    </div>
-
-    <div class="row">
-        <input id="ragSourceNameInput" type="text" placeholder="来源名称（可选）">
-    </div>
-
-    <label class="checkbox-row">
-        <input type="checkbox" id="allowDuplicateInput">
-        允许重复添加
-    </label>
-
-    <textarea id="ragTextInput" rows="8" placeholder="请输入要加入知识库的文本"></textarea>
-    <p id="ragTextInfo">当前字数：0，预计 chunk 数：0</p>
-    <div id="ragStoreBox">这里显示知识库添加结果</div>
-
-    <h3>从文档文件加入知识库</h3>
-    <div class="row">
-        <select id="ragFileSelect"></select>
-        <button id="refreshRagFilesBtn">刷新文件</button>
-        <button id="addRagFileBtn">选择文件加入知识库</button>
-    </div>
-
-    <div class="row">
-        <input type="file" id="ragUploadFileInput" accept=".txt,.md,.pdf,.docx">
-        <button id="uploadAndAddRagBtn">上传并加入知识库</button>
-    </div>
-
-    <div id="ragFileBox">这里显示文件加入结果</div>
-
-    <h3>向知识库提问</h3>
-    <div class="row">
-        <input id="ragQuestionInput" type="text" placeholder="请输入知识库问题">
-        <button id="ragAskBtn">知识库提问</button>
-    </div>
-
-    <div id="ragAnswerBox">这里显示知识库回答</div>
-    <div id="ragReferenceBox">这里显示参考片段</div>
-
-    <h3>搜索知识库片段</h3>
-    <div class="row">
-        <input id="ragSearchInput" type="text" placeholder="请输入检索关键词">
-        <button id="ragSearchBtn">搜索片段</button>
-    </div>
-
-    <div id="ragSearchBox">这里显示搜索结果</div>
-
-    <script src="/static/js/app.js"></script>
+    <script src="./js/app.js"></script>
 </body>
 
 </html>

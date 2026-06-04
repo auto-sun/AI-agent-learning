@@ -6,6 +6,7 @@ from services.file_service import get_upload_file_path, list_supported_files, sa
 from services.document_parser import extract_text_from_file, SUPPORTED_EXTENSIONS
 from sqlalchemy.orm import Session
 from services.database import get_db
+from services.db_models import DocumentRecord, QARecord
 from services.record_service import create_document_record, create_qa_record
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
@@ -345,3 +346,70 @@ async def upload_and_add(
             status_code=500,
             detail=f"文件上传、解析或添加失败：{str(e)}"
         )
+
+@router.get("/documents")
+def list_document_records(
+    skip: int = 0,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+):
+    records = (
+        db.query(DocumentRecord)
+        .order_by(DocumentRecord.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return {
+        "documents": [
+            {
+                "id": item.id,
+                "filename": item.filename,
+                "source_name": item.source_name,
+                "source_type": item.source_type,
+                "file_type": item.file_type,
+                "file_suffix": item.file_suffix,
+                "chunk_count": item.chunk_count,
+                "original_chunk_count": item.original_chunk_count,
+                "skipped_duplicate_chunks": item.skipped_duplicate_chunks,
+                "total_chunks_after_add": item.total_chunks_after_add,
+                "duplicate": item.duplicate,
+                "message": item.message,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+            }
+            for item in records
+        ]
+    }
+
+
+@router.get("/qa-records")
+def list_qa_records(
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+):
+    records = (
+        db.query(QARecord)
+        .order_by(QARecord.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "qa_records": [
+            {
+                "id": item.id,
+                "question": item.question,
+                "answer": item.answer,
+                "is_answerable": item.is_answerable,
+                "max_score": item.max_score,
+                "score_threshold": item.score_threshold,
+                "top_k": item.top_k,
+                "reference_count": item.reference_count,
+                "references_json": item.references_json,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+            }
+            for item in records
+        ]
+    }

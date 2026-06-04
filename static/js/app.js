@@ -35,6 +35,10 @@ const ragReferenceBox = document.querySelector("#ragReferenceBox");
 const ragSearchInput = document.querySelector("#ragSearchInput");
 const ragSearchBtn = document.querySelector("#ragSearchBtn");
 const ragSearchBox = document.querySelector("#ragSearchBox");
+const refreshDocumentRecordsBtn = document.querySelector("#refreshDocumentRecordsBtn");
+const documentRecordBox = document.querySelector("#documentRecordBox");
+const refreshQaRecordsBtn = document.querySelector("#refreshQaRecordsBtn");
+const qaRecordBox = document.querySelector("#qaRecordBox");
 let currentText = "";
 let currentFilename = "";
 let currentChunks = [];
@@ -453,6 +457,22 @@ function formatScore(score) {
     return numberScore.toFixed(4);
 }
 
+function formatNullable(value) {
+    if (value === undefined || value === null || value === "") {
+        return "无";
+    }
+
+    return String(value);
+}
+
+function formatYesNo(value) {
+    if (value === undefined || value === null) {
+        return "无";
+    }
+
+    return value ? "是" : "否";
+}
+
 function formatRagMeta(item) {
     const meta = [];
 
@@ -581,6 +601,7 @@ async function addRagText() {
         }
 
         renderRagAddResult(ragStoreBox, data);
+        await loadDocumentRecords();
     } catch (error) {
         console.log("添加知识库失败：", error);
         result.innerText = "网络错误，添加知识库失败";
@@ -593,6 +614,10 @@ async function addRagText() {
 
 function renderRagAddResult(container, data) {
     const lines = [];
+
+    if (data.document_record_id !== undefined) {
+        lines.push("入库记录ID：" + data.document_record_id);
+    }
 
     if (data.filename) {
         lines.push("文件：" + data.filename);
@@ -715,6 +740,7 @@ async function addSelectedRagFile() {
         }
 
         renderRagAddResult(ragFileBox, data);
+        await loadDocumentRecords();
     } catch (error) {
         console.log("文件加入知识库失败：", error);
         result.innerText = "网络错误，文件加入知识库失败";
@@ -780,6 +806,7 @@ async function uploadAndAddRagFile() {
         renderRagAddResult(ragFileBox, data);
         await loadFiles();
         await loadRagFiles();
+        await loadDocumentRecords();
     } catch (error) {
         console.log("上传并加入知识库失败：", error);
         result.innerText = "网络错误，上传并加入知识库失败";
@@ -842,10 +869,12 @@ async function askRag() {
         }
 
         ragAnswerBox.innerText =
+            "问答记录ID：" + formatNullable(data.qa_record_id) + "\n" +
             "最高相似度：" + maxScore + "，阈值：" + threshold + "\n\n" +
             (data.answer || "没有返回回答");
 
         renderRagReferences(data.references);
+        await loadQaRecords();
 
         ragQuestionInput.value = "";
     } catch (error) {
@@ -918,8 +947,167 @@ async function searchRag() {
     }
 }
 
+function renderDocumentRecords(documents) {
+    documentRecordBox.innerHTML = "";
+
+    if (!documents || documents.length === 0) {
+        documentRecordBox.innerText = "暂无文档入库记录";
+        return;
+    }
+
+    for (let i = 0; i < documents.length; i++) {
+        const item = documents[i];
+        const div = document.createElement("div");
+        div.classList.add("reference-item");
+
+        const title = document.createElement("div");
+        title.classList.add("reference-title");
+        title.innerText =
+            "记录 #" + formatNullable(item.id) +
+            "，来源：" + formatNullable(item.source_name) +
+            "，类型：" + formatNullable(item.source_type);
+
+        const originalChunkCount = item.original_chunk_count ?? item.orginal_chunk_count;
+        const skippedDuplicateChunks = item.skipped_duplicate_chunks ?? item.skipped_duplicate_counts;
+
+        const content = document.createElement("div");
+        const lines = [
+            "文件：" + formatNullable(item.filename),
+            "文件类型：" + formatNullable(item.file_type),
+            "文件后缀：" + formatNullable(item.file_suffix),
+            "添加结果：" + formatNullable(item.message),
+            "是否重复：" + formatYesNo(item.duplicate),
+            "原始 chunk 数：" + formatNullable(originalChunkCount),
+            "实际新增 chunk 数：" + formatNullable(item.chunk_count),
+            "跳过重复 chunk 数：" + formatNullable(skippedDuplicateChunks),
+            "入库后总 chunk 数：" + formatNullable(item.total_chunks_after_add),
+            "时间：" + formatNullable(item.created_at),
+        ];
+        content.innerText = lines.join("\n");
+
+        div.appendChild(title);
+        div.appendChild(content);
+        documentRecordBox.appendChild(div);
+    }
+}
+
+async function loadDocumentRecords() {
+    try {
+        documentRecordBox.innerText = "正在加载文档入库记录...";
+
+        const response = await fetch("/rag/documents?limit=10");
+        let data = {};
+
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            documentRecordBox.innerText = data.detail || `获取文档入库记录失败，状态码：${response.status}`;
+            return;
+        }
+
+        renderDocumentRecords(data.documents);
+    } catch (error) {
+        console.log("获取文档入库记录失败：", error);
+        documentRecordBox.innerText = "网络错误，获取文档入库记录失败";
+    }
+}
+
+function formatQaReferenceSummary(referencesJson) {
+    if (!referencesJson) {
+        return "";
+    }
+
+    try {
+        const references = JSON.parse(referencesJson);
+        if (!Array.isArray(references) || references.length === 0) {
+            return "";
+        }
+
+        return references.slice(0, 3).map(function (item, index) {
+            return "参考 " + (index + 1) +
+                "：" + formatNullable(item.source_name) +
+                "，chunk_id：" + formatNullable(item.chunk_id) +
+                "，相似度：" + formatScore(item.score);
+        }).join("\n");
+    } catch {
+        return "";
+    }
+}
+
+function renderQaRecords(records) {
+    qaRecordBox.innerHTML = "";
+
+    if (!records || records.length === 0) {
+        qaRecordBox.innerText = "暂无问答历史";
+        return;
+    }
+
+    for (let i = 0; i < records.length; i++) {
+        const item = records[i];
+        const div = document.createElement("div");
+        div.classList.add("reference-item");
+
+        const title = document.createElement("div");
+        title.classList.add("reference-title");
+        title.innerText =
+            "记录 #" + formatNullable(item.id) +
+            "，" + (item.is_answerable === false ? "相关度不足" : "已回答") +
+            "，最高相似度：" + formatScore(item.max_score);
+
+        const content = document.createElement("div");
+        const lines = [
+            "问题：" + formatNullable(item.question),
+            "回答：" + formatNullable(item.answer),
+            "阈值：" + formatScore(item.score_threshold),
+            "top_k：" + formatNullable(item.top_k),
+            "参考片段数：" + formatNullable(item.reference_count),
+            "时间：" + formatNullable(item.created_at),
+        ];
+        const referenceSummary = formatQaReferenceSummary(item.references_json);
+        if (referenceSummary) {
+            lines.push(referenceSummary);
+        }
+        content.innerText = lines.join("\n");
+
+        div.appendChild(title);
+        div.appendChild(content);
+        qaRecordBox.appendChild(div);
+    }
+}
+
+async function loadQaRecords() {
+    try {
+        qaRecordBox.innerText = "正在加载问答历史...";
+
+        const response = await fetch("/rag/qa-records?limit=20");
+        let data = {};
+
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            qaRecordBox.innerText = data.detail || `获取问答历史失败，状态码：${response.status}`;
+            return;
+        }
+
+        renderQaRecords(data.qa_records);
+    } catch (error) {
+        console.log("获取问答历史失败：", error);
+        qaRecordBox.innerText = "网络错误，获取问答历史失败";
+    }
+}
+
 
 refreshRagFilesBtn.addEventListener("click", loadRagFiles);
+refreshDocumentRecordsBtn.addEventListener("click", loadDocumentRecords);
+refreshQaRecordsBtn.addEventListener("click", loadQaRecords);
 addRagFileBtn.addEventListener("click", addSelectedRagFile);
 uploadAndAddRagBtn.addEventListener("click", uploadAndAddRagFile);
 useCurrentTextBtn.addEventListener("click", useCurrentTextForRag);
@@ -952,5 +1140,11 @@ ragSearchInput.addEventListener("keydown", function (event) {
         searchRag();
     }
 });
-loadFiles();
-loadRagFiles();
+if (window.location.protocol === "file:") {
+    result.innerText = "本地文件预览模式";
+} else {
+    loadFiles();
+    loadRagFiles();
+    loadDocumentRecords();
+    loadQaRecords();
+}
