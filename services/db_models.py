@@ -20,6 +20,8 @@ class DocumentRecord(Base):
     total_chunks_after_add = Column(Integer, default=0)
     duplicate = Column(Boolean, default=False)
     message = Column(String(255), nullable=True)
+    is_deleted = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
 

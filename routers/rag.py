@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException,UploadFile, File, Depends
 from schemas.rag import *
 from services.ai_services import ask_ai
@@ -351,15 +353,21 @@ async def upload_and_add(
 def list_document_records(
     skip: int = 0,
     limit: int = 10,
+    include_deleted: bool = False,
     db: Session = Depends(get_db),
 ):
+    query = db.query(DocumentRecord)
+
+    if not include_deleted:
+        query = query.filter(DocumentRecord.is_deleted.is_(False))
+
     records = (
-        db.query(DocumentRecord)
-        .order_by(DocumentRecord.id.desc())
+        query.order_by(DocumentRecord.id.desc())
         .offset(skip)
         .limit(limit)
         .all()
     )
+
     return {
         "documents": [
             {
@@ -369,16 +377,74 @@ def list_document_records(
                 "source_type": item.source_type,
                 "file_type": item.file_type,
                 "file_suffix": item.file_suffix,
+                "source_hash": item.source_hash,
                 "chunk_count": item.chunk_count,
                 "original_chunk_count": item.original_chunk_count,
                 "skipped_duplicate_chunks": item.skipped_duplicate_chunks,
                 "total_chunks_after_add": item.total_chunks_after_add,
                 "duplicate": item.duplicate,
                 "message": item.message,
+                "is_deleted": item.is_deleted,
+                "deleted_at": item.deleted_at.isoformat() if item.deleted_at else None,
                 "created_at": item.created_at.isoformat() if item.created_at else None,
             }
             for item in records
         ]
+    }
+
+
+@router.delete("/documents/{document_id}")
+def delete_document_record(
+    document_id: int,
+    db: Session = Depends(get_db),
+):
+    document = (
+        db.query(DocumentRecord)
+        .filter(DocumentRecord.id == document_id)
+        .first()
+    )
+
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="文档记录不存在"
+        )
+
+    if document.is_deleted:
+        return {
+            "message": "文档记录已删除",
+            "document_id": document.id,
+            "source_hash": document.source_hash,
+            "deleted_chunk_count": 0,
+            "is_deleted": document.is_deleted,
+            "deleted_at": document.deleted_at.isoformat() if document.deleted_at else None,
+        }
+
+    deleted_chunk_count = 0
+
+    try:
+        if document.source_hash and (document.chunk_count or 0) > 0:
+            delete_result = vector_store.delete_by_source_hash(document.source_hash)
+            deleted_chunk_count = delete_result.get("deleted_chunk_count", 0)
+
+        document.is_deleted = True
+        document.deleted_at = datetime.now()
+        db.commit()
+        db.refresh(document)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"删除文档记录失败：{str(e)}"
+        )
+
+    return {
+        "message": "文档记录已删除，并已同步删除知识库片段",
+        "document_id": document.id,
+        "source_hash": document.source_hash,
+        "deleted_chunk_count": deleted_chunk_count,
+        "is_deleted": document.is_deleted,
+        "deleted_at": document.deleted_at.isoformat() if document.deleted_at else None,
     }
 
 

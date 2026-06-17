@@ -960,12 +960,27 @@ function renderDocumentRecords(documents) {
         const div = document.createElement("div");
         div.classList.add("reference-item");
 
+        const heading = document.createElement("div");
+        heading.classList.add("record-heading");
+
         const title = document.createElement("div");
         title.classList.add("reference-title");
         title.innerText =
             "记录 #" + formatNullable(item.id) +
             "，来源：" + formatNullable(item.source_name) +
             "，类型：" + formatNullable(item.source_type);
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.classList.add("danger-button");
+        deleteButton.innerText = item.is_deleted ? "已删除" : "删除";
+        deleteButton.disabled = item.is_deleted === true;
+        deleteButton.addEventListener("click", function () {
+            deleteDocumentRecord(item.id);
+        });
+
+        heading.appendChild(title);
+        heading.appendChild(deleteButton);
 
         const originalChunkCount = item.original_chunk_count ?? item.orginal_chunk_count;
         const skippedDuplicateChunks = item.skipped_duplicate_chunks ?? item.skipped_duplicate_counts;
@@ -981,11 +996,13 @@ function renderDocumentRecords(documents) {
             "实际新增 chunk 数：" + formatNullable(item.chunk_count),
             "跳过重复 chunk 数：" + formatNullable(skippedDuplicateChunks),
             "入库后总 chunk 数：" + formatNullable(item.total_chunks_after_add),
+            "是否删除：" + formatYesNo(item.is_deleted),
+            "删除时间：" + formatNullable(item.deleted_at),
             "时间：" + formatNullable(item.created_at),
         ];
         content.innerText = lines.join("\n");
 
-        div.appendChild(title);
+        div.appendChild(heading);
         div.appendChild(content);
         documentRecordBox.appendChild(div);
     }
@@ -1013,6 +1030,49 @@ async function loadDocumentRecords() {
     } catch (error) {
         console.log("获取文档入库记录失败：", error);
         documentRecordBox.innerText = "网络错误，获取文档入库记录失败";
+    }
+}
+
+async function deleteDocumentRecord(documentId) {
+    if (documentId === undefined || documentId === null) {
+        result.innerText = "缺少文档记录ID";
+        return;
+    }
+
+    const confirmed = window.confirm("确认删除这条文档入库记录，并同步删除对应知识库片段吗？");
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        result.innerText = "正在删除文档记录...";
+
+        const response = await fetch("/rag/documents/" + encodeURIComponent(documentId), {
+            method: "DELETE"
+        });
+
+        let data = {};
+
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            result.innerText = data.detail || `删除文档记录失败，状态码：${response.status}`;
+            return;
+        }
+
+        result.innerText =
+            (data.message || "文档记录已删除") +
+            "，删除 chunk 数：" + formatNullable(data.deleted_chunk_count);
+
+        await loadDocumentRecords();
+    } catch (error) {
+        console.log("删除文档记录失败：", error);
+        result.innerText = "网络错误，删除文档记录失败";
     }
 }
 

@@ -280,6 +280,41 @@ class ChromaVectorStore:
 
         return results
 
+    def delete_by_source_hash(self, source_hash: str) -> dict:
+        """
+        根据 source_hash 删除 Chroma 中属于同一篇文档的所有 chunk。
+        """
+        clean_source_hash = source_hash.strip() if source_hash else ""
+
+        if not clean_source_hash:
+            return {
+                "source_hash": clean_source_hash,
+                "deleted_chunk_count": 0,
+                "remaining_chunks": self.collection.count(),
+            }
+
+        result = self.collection.get(
+            where={
+                "source_hash": clean_source_hash,
+            },
+            include=[
+                "metadatas"
+            ]
+        )
+
+        ids = result.get("ids", [])
+
+        if ids:
+            self.collection.delete(
+                ids=ids
+            )
+
+        return {
+            "source_hash": clean_source_hash,
+            "deleted_chunk_count": len(ids),
+            "remaining_chunks": self.collection.count(),
+        }
+
     def count(self) -> int:
         """
         返回当前 Chroma collection 中的 chunk 数量。
