@@ -185,7 +185,8 @@ button:disabled {
 #refreshQaRecordsBtn,
 #useCurrentTextBtn,
 #summaryBtn,
-#chunkBtn {
+#chunkBtn,
+.secondary-button {
     border-color: var(--line);
     background: var(--surface);
     color: var(--text);
@@ -196,7 +197,8 @@ button:disabled {
 #refreshQaRecordsBtn:hover:not(:disabled),
 #useCurrentTextBtn:hover:not(:disabled),
 #summaryBtn:hover:not(:disabled),
-#chunkBtn:hover:not(:disabled) {
+#chunkBtn:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) {
     border-color: #b9c2d0;
     background: #f3f5f8;
 }
@@ -301,6 +303,18 @@ a:hover {
     margin-bottom: 0;
 }
 
+.record-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 8px;
+}
+
+.muted-text {
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
 #chatBox,
 #textPreview,
 #summaryBox,
@@ -312,6 +326,7 @@ a:hover {
 #ragReferenceBox,
 #ragSearchBox,
 #documentRecordBox,
+#documentDetailBox,
 #qaRecordBox {
     margin-top: 12px;
     border: 1px solid var(--line);

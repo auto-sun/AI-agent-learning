@@ -15,6 +15,30 @@ router = APIRouter(prefix="/rag", tags=["RAG"])
 
 vector_store = ChromaVectorStore()
 
+
+def serialize_document_record(item: DocumentRecord) -> dict:
+    return {
+        "id": item.id,
+        "filename": item.filename,
+        "source_name": item.source_name,
+        "source_type": item.source_type,
+        "file_type": item.file_type,
+        "file_suffix": item.file_suffix,
+        "source_hash": item.source_hash,
+        "text_length": item.text_length,
+        "parsed_text_length": item.parsed_text_length,
+        "chunk_count": item.chunk_count,
+        "original_chunk_count": item.original_chunk_count,
+        "skipped_duplicate_chunks": item.skipped_duplicate_chunks,
+        "total_chunks_after_add": item.total_chunks_after_add,
+        "duplicate": item.duplicate,
+        "message": item.message,
+        "is_deleted": item.is_deleted,
+        "deleted_at": item.deleted_at.isoformat() if item.deleted_at else None,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+    }
+
+
 def add_uploaded_file_to_vector_store(
     filename: str,
     chunk_size: int,
@@ -370,26 +394,41 @@ def list_document_records(
 
     return {
         "documents": [
-            {
-                "id": item.id,
-                "filename": item.filename,
-                "source_name": item.source_name,
-                "source_type": item.source_type,
-                "file_type": item.file_type,
-                "file_suffix": item.file_suffix,
-                "source_hash": item.source_hash,
-                "chunk_count": item.chunk_count,
-                "original_chunk_count": item.original_chunk_count,
-                "skipped_duplicate_chunks": item.skipped_duplicate_chunks,
-                "total_chunks_after_add": item.total_chunks_after_add,
-                "duplicate": item.duplicate,
-                "message": item.message,
-                "is_deleted": item.is_deleted,
-                "deleted_at": item.deleted_at.isoformat() if item.deleted_at else None,
-                "created_at": item.created_at.isoformat() if item.created_at else None,
-            }
+            serialize_document_record(item)
             for item in records
         ]
+    }
+
+
+@router.get("/documents/{document_id}")
+def get_document_detail(
+    document_id: int,
+    db: Session = Depends(get_db),
+):
+    document = (
+        db.query(DocumentRecord)
+        .filter(DocumentRecord.id == document_id)
+        .first()
+    )
+
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="文档记录不存在"
+        )
+
+    try:
+        chunks = vector_store.get_chunks_by_source_hash(document.source_hash)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取文档 chunk 失败：{str(e)}"
+        )
+
+    return {
+        "document": serialize_document_record(document),
+        "chunks": chunks,
+        "chunk_count": len(chunks),
     }
 
 

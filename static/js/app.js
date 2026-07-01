@@ -37,6 +37,7 @@ const ragSearchBtn = document.querySelector("#ragSearchBtn");
 const ragSearchBox = document.querySelector("#ragSearchBox");
 const refreshDocumentRecordsBtn = document.querySelector("#refreshDocumentRecordsBtn");
 const documentRecordBox = document.querySelector("#documentRecordBox");
+const documentDetailBox = document.querySelector("#documentDetailBox");
 const refreshQaRecordsBtn = document.querySelector("#refreshQaRecordsBtn");
 const qaRecordBox = document.querySelector("#qaRecordBox");
 let currentText = "";
@@ -979,8 +980,21 @@ function renderDocumentRecords(documents) {
             deleteDocumentRecord(item.id);
         });
 
+        const detailButton = document.createElement("button");
+        detailButton.type = "button";
+        detailButton.classList.add("secondary-button");
+        detailButton.innerText = "查看详情";
+        detailButton.addEventListener("click", function () {
+            loadDocumentDetail(item.id);
+        });
+
+        const actions = document.createElement("div");
+        actions.classList.add("record-actions");
+        actions.appendChild(detailButton);
+        actions.appendChild(deleteButton);
+
         heading.appendChild(title);
-        heading.appendChild(deleteButton);
+        heading.appendChild(actions);
 
         const originalChunkCount = item.original_chunk_count ?? item.orginal_chunk_count;
         const skippedDuplicateChunks = item.skipped_duplicate_chunks ?? item.skipped_duplicate_counts;
@@ -1030,6 +1044,113 @@ async function loadDocumentRecords() {
     } catch (error) {
         console.log("获取文档入库记录失败：", error);
         documentRecordBox.innerText = "网络错误，获取文档入库记录失败";
+    }
+}
+
+function renderDocumentDetail(data) {
+    documentDetailBox.innerHTML = "";
+
+    if (!data || !data.document) {
+        documentDetailBox.innerText = "暂无文档详情";
+        return;
+    }
+
+    const documentRecord = data.document;
+    const chunks = data.chunks || [];
+
+    const title = document.createElement("div");
+    title.classList.add("reference-title");
+    title.innerText =
+        "文档详情 #" + formatNullable(documentRecord.id) +
+        "，来源：" + formatNullable(documentRecord.source_name);
+
+    const info = document.createElement("div");
+    const lines = [
+        "文件：" + formatNullable(documentRecord.filename),
+        "来源类型：" + formatNullable(documentRecord.source_type),
+        "文件类型：" + formatNullable(documentRecord.file_type),
+        "文件后缀：" + formatNullable(documentRecord.file_suffix),
+        "source_hash：" + formatNullable(documentRecord.source_hash),
+        "文本字数：" + formatNullable(documentRecord.text_length),
+        "解析文本字数：" + formatNullable(documentRecord.parsed_text_length),
+        "记录新增 chunk 数：" + formatNullable(documentRecord.chunk_count),
+        "当前 Chroma chunk 数：" + formatNullable(data.chunk_count),
+        "是否删除：" + formatYesNo(documentRecord.is_deleted),
+        "删除时间：" + formatNullable(documentRecord.deleted_at),
+        "创建时间：" + formatNullable(documentRecord.created_at),
+    ];
+    info.innerText = lines.join("\n");
+
+    documentDetailBox.appendChild(title);
+    documentDetailBox.appendChild(info);
+
+    if (chunks.length === 0) {
+        const empty = document.createElement("div");
+        empty.classList.add("chunk-item");
+        empty.innerText = "暂无 chunk，可能是重复入库记录、空文档，或该文档已删除。";
+        documentDetailBox.appendChild(empty);
+        return;
+    }
+
+    for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const chunkDiv = document.createElement("div");
+        chunkDiv.classList.add("chunk-item");
+
+        const chunkTitle = document.createElement("div");
+        chunkTitle.classList.add("chunk-title");
+        chunkTitle.innerText =
+            "Chunk " + (i + 1) +
+            "，chunk_index：" + formatNullable(chunk.chunk_index) +
+            "，chunk_id：" + formatNullable(chunk.chunk_id);
+
+        const chunkMeta = document.createElement("div");
+        chunkMeta.classList.add("muted-text");
+        chunkMeta.innerText =
+            "chunk_hash：" + formatNullable(chunk.chunk_hash) +
+            "，时间：" + formatNullable(chunk.created_at);
+
+        const chunkContent = document.createElement("div");
+        chunkContent.innerText = chunk.content || "";
+
+        chunkDiv.appendChild(chunkTitle);
+        chunkDiv.appendChild(chunkMeta);
+        chunkDiv.appendChild(chunkContent);
+        documentDetailBox.appendChild(chunkDiv);
+    }
+}
+
+async function loadDocumentDetail(documentId) {
+    if (documentId === undefined || documentId === null) {
+        result.innerText = "缺少文档记录ID";
+        return;
+    }
+
+    try {
+        result.innerText = "正在加载文档详情...";
+        documentDetailBox.innerText = "正在加载文档详情...";
+
+        const response = await fetch("/rag/documents/" + encodeURIComponent(documentId));
+        let data = {};
+
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            result.innerText = data.detail || `获取文档详情失败，状态码：${response.status}`;
+            documentDetailBox.innerText = data.detail || "获取文档详情失败";
+            return;
+        }
+
+        renderDocumentDetail(data);
+        result.innerText = "文档详情加载完成";
+    } catch (error) {
+        console.log("获取文档详情失败：", error);
+        result.innerText = "网络错误，获取文档详情失败";
+        documentDetailBox.innerText = "网络错误，获取文档详情失败";
     }
 }
 

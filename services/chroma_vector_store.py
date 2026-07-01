@@ -315,6 +315,63 @@ class ChromaVectorStore:
             "remaining_chunks": self.collection.count(),
         }
 
+    def get_chunks_by_source_hash(self, source_hash: str) -> list[dict]:
+        """
+        根据 source_hash 查询同一篇文档的所有 chunk，并按 chunk_index 排序。
+        """
+        clean_source_hash = source_hash.strip() if source_hash else ""
+
+        if not clean_source_hash:
+            return []
+
+        result = self.collection.get(
+            where={
+                "source_hash": clean_source_hash,
+            },
+            include=[
+                "documents",
+                "metadatas"
+            ]
+        )
+
+        ids = result.get("ids", [])
+        documents = result.get("documents", [])
+        metadatas = result.get("metadatas", [])
+
+        chunks = []
+
+        for item_id, document, metadata in zip(
+            ids,
+            documents,
+            metadatas,
+        ):
+            chunks.append({
+                "chunk_id": metadata.get("chunk_id", item_id),
+                "content": document,
+                "source_name": metadata.get("source_name", "未知来源"),
+                "source_type": metadata.get("source_type", "unknown"),
+                "chunk_index": metadata.get("chunk_index", -1),
+                "created_at": metadata.get("created_at", ""),
+                "source_hash": metadata.get("source_hash", clean_source_hash),
+                "chunk_hash": metadata.get("chunk_hash", ""),
+            })
+
+        def sort_key(item: dict):
+            chunk_index = item.get("chunk_index", -1)
+
+            if isinstance(chunk_index, int):
+                return chunk_index
+
+            try:
+                return int(chunk_index)
+            except (TypeError, ValueError):
+                return -1
+
+        return sorted(
+            chunks,
+            key=sort_key,
+        )
+
     def count(self) -> int:
         """
         返回当前 Chroma collection 中的 chunk 数量。
